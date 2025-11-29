@@ -7,27 +7,18 @@ from app.worker.tasks import ingest_file_task
 # 导入同步 runner builder
 from app.orchestrator.pipeline_runner import PipelineRunner
 from app.sources.file_source import FileSource
-from app.pipelines.tika_processor import TikaProcessor
-from app.pipelines.clean_processor import CleanProcessor
-from app.pipelines.chunk_processor import ChunkProcessor
-from app.pipelines.llm_processor import LLMProcessor
-from app.pipelines.embed_processor import EmbedProcessor
 from app.sinks.solr_sink import SolrSink
 from app.sinks.chroma_sink import ChromaSink
+from app.pipelines.processor_registry import load_all_processors
 
 router = APIRouter()
 
 def _make_runner(filename: str, content: bytes):
     source = FileSource(filename, content)
-    processors = [
-        TikaProcessor(),
-        CleanProcessor(),
-        ChunkProcessor(),
-        LLMProcessor(),
-        EmbedProcessor(),
-    ]
+    processors = load_all_processors()  # 自动扫描 app.pipelines
     sinks = [SolrSink(), ChromaSink()]
-    return PipelineRunner(source=source, processors=processors, sinks=sinks)
+    runner = PipelineRunner(source, processors, sinks)
+    return runner
 
 @router.post("/upload_async")
 async def upload_async(file: UploadFile = File(...)):
