@@ -12,8 +12,6 @@ class SolrSink(BaseSink):
     def write(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> None:
         logger.info(f"context:{context}")
         del data['binary']
-        del data['chunks']
-        logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         logger.info(f"data:{data}")
         # 构建文档：示例把 raw_text/clean_text 放到 Solr doc 中
         doc = {
