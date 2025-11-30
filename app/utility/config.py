@@ -16,11 +16,11 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: Optional[str] = "gpt-3.5-turbo"  # Default value
-
+    OPENAI_EMBEDDING_MODEL: Optional[str] = None
     ALI_QWEN_MAX_API_KEY: Optional[str] = None
     ALI_QWEN_API_URL: Optional[str] = None
     ALI_QWEN_MODEL: Optional[str] = "qwen-plus"  # Default value
-
+    ALI_EMBEDDING_MODEL: Optional[str] = None
     ALI_DS_MODEL: Optional[str] = None
     ALI_QWEN_MAX_MODEL: Optional[str] = None
 

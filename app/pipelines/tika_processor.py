@@ -45,8 +45,8 @@ class TikaProcessor(BaseProcessor):
             logger.info(f"TikaProcessor extracted text length={len(text)}")
 
             # 为了调试和避免日志文件本身乱码，我们只打印文本的片段
-            log_preview = text[:200] + ('...' if len(text) > 200 else '')
-            logger.info(f"TikaProcessor preview: {log_preview}")
+            #log_preview = text[:200] + ('...' if len(text) > 200 else '')
+            #logger.info(f"TikaProcessor preview: {log_preview}")
 
             return {"raw_text": text}
 

@@ -12,11 +12,11 @@ class PipelineRunner:
     使用约定的 Base* 接口。
     """
 
-    def __init__(self, source: BaseSource, processors: List[BaseProcessor], sinks: List[BaseSink]):
+    def __init__(self, source: BaseSource, processors: List[BaseProcessor], sinks: List[BaseSink] = None):
         self.source = source
         # 确保 processors 是按 order 排序的（如果传入的 redan 排序，这里也会二次排序）
         self.processors = sorted(processors, key=lambda p: getattr(p, "order", 100))
-        self.sinks = sinks
+        self.sinks = sinks or []
 
     def run(self, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         context = context or {}

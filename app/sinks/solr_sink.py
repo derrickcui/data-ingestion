@@ -3,12 +3,18 @@ from typing import Dict, Any, Optional
 from app.sinks.base import BaseSink
 import requests
 from app.utility.config import Config  # 假设你已有统一 config
+from app.utility.log import logger
 
 class SolrSink(BaseSink):
     def __init__(self, solr_url: Optional[str] = None):
         self.solr_url = solr_url or Config.SOLR_URL
 
     def write(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> None:
+        logger.info(f"context:{context}")
+        del data['binary']
+        del data['chunks']
+        logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        logger.info(f"data:{data}")
         # 构建文档：示例把 raw_text/clean_text 放到 Solr doc 中
         doc = {
             "id": context.get("doc_id") or data.get("filename"),

@@ -6,12 +6,33 @@
 import pkgutil
 import importlib
 import inspect
-from typing import List
+from typing import List, Type
 from app.utility.log import logger
 
 from app.pipelines.base import BaseProcessor
 
+def load_all_processor_classes() -> List[Type[BaseProcessor]]:
+    processor_classes: List[Type[BaseProcessor]] = []
+    pkg = importlib.import_module("app.pipelines")
 
+    for finder, module_name, ispkg in pkgutil.iter_modules(pkg.__path__):
+        if module_name in ("base", "processor_registry"):
+            continue
+        full_mod_name = f"{pkg.__name__}.{module_name}"
+        try:
+            module = importlib.import_module(full_mod_name)
+        except Exception as e:
+            logger.error(f"Failed to import {full_mod_name}: {e}")
+            continue
+        for _, obj in inspect.getmembers(module, inspect.isclass):
+            if issubclass(obj, BaseProcessor) and obj is not BaseProcessor:
+                processor_classes.append(obj)
+
+    processor_classes.sort(key=lambda cls: getattr(cls, "order", 100))
+    logger.info(f"Loaded processor classes: {[cls.__name__ for cls in processor_classes]}")
+    return processor_classes
+
+"""
 def load_all_processors() -> List[BaseProcessor]:
     processors = []
 
@@ -55,3 +76,4 @@ def load_all_processors() -> List[BaseProcessor]:
     )
 
     return processors
+"""
