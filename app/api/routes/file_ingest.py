@@ -18,13 +18,23 @@ from app.ai_providers.aliyun_client import AliEmbeddingClient
 from app.ai_providers.google_client import GoogleEmbeddingClient
 from app.utility.log import logger
 
+from concurrent.futures import ThreadPoolExecutor
+from fastapi.concurrency import run_in_threadpool
+
 router = APIRouter()
 
+# 全局线程池（50并发足够）
+executor = ThreadPoolExecutor(max_workers=50)
+
+
+# -------------------------------------------------
+#  构建 Pipeline Runner
+# -------------------------------------------------
 def _make_runner(
     filename: str,
     content: bytes,
-    embedding_client: Optional[object] = None,  # 可传 OpenAI/ALI/Google client
-    llm_client: Optional[object] = None  # 可传 OpenAI/ALI/Google LLM client
+    embedding_client: Optional[object] = None,
+    llm_client: Optional[object] = None
 ):
     source = FileSource(filename, content)
     sinks = [SolrSink()]
@@ -32,7 +42,6 @@ def _make_runner(
     processor_classes = load_all_processor_classes()
     processors = []
     for cls in processor_classes:
-        # 只有 EmbedProcessor 需要 client，其它 processor 无参构造
         if cls.__name__ == "EmbedProcessor" and embedding_client is not None:
             processors.append(cls(client=embedding_client))
         elif cls.__name__ == "LLMProcessor" and llm_client is not None:
@@ -43,30 +52,30 @@ def _make_runner(
     runner = PipelineRunner(source, processors, sinks)
     return runner
 
-# ------------------ 同步接口 ------------------
 
+# -------------------------------------------------
+#  同步接口（已改成真正的多并发）
+# -------------------------------------------------
 @router.post("/upload_sync",
-             summary="同步上传文件并启动处理流程",
-             response_description="返回处理任务的状态或ID"
+             summary="同步上传文件并启动处理流程（多并发）",
+             response_description="返回处理结果"
 )
 async def upload_sync(
-        file: UploadFile = File(..., description="要上传和处理的文档文件"),
-        # 强制将 provider 识别为 URL 查询参数
+        file: UploadFile = File(...),
         provider: Optional[str] = Query(
             None,
-            description="用于文件上传或处理的服务提供商标识 (例如: 'ali', 'openai', 'google')",
+            description="embedding/LLM provider，如 'ali', 'openai', 'google'",
             example="ali"
         )
 ):
-    """
-    同步上传：直接执行 pipeline，适合调试/小数据量
-    provider + api_key 可选择使用大模型生成 embedding
-    """
+    """同步上传 + 在线执行 pipeline（线程池执行，可并发）"""
+
     content = await file.read()
 
-    # 根据 provider 初始化 embedding client
+    # 根据 provider 初始化 embedding & LLM client
     embedding_client = None
     llm_client = None
+
     if provider:
         provider = provider.lower()
         if provider == "openai":
@@ -82,18 +91,23 @@ async def upload_sync(
             raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     runner = _make_runner(file.filename, content, embedding_client, llm_client)
+
     try:
-        result = runner.run()
+        # ✨ 用 threadpool 执行 runner.run（解决阻塞，实现高并发）
+        result = await run_in_threadpool(runner.run)
         return {"status": "ok", "result": result}
+
     except Exception as e:
+        logger.error(f"Pipeline failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# ------------------ 异步接口 ------------------
+
+# -------------------------------------------------
+#  异步接口（Celery 版本）
+# -------------------------------------------------
 @router.post("/upload_async")
 async def upload_async(file: UploadFile = File(...)):
-    """
-    异步上传：使用 Celery，将任务投递给 worker
-    """
+    """异步上传：使用 Celery，将任务投递给 worker"""
     content = await file.read()
 
     from app.worker.celery_app import celery_app

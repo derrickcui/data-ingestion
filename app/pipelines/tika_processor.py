@@ -1,7 +1,7 @@
 # app/processors/tika_processor.py
 import os
-import hashlib
 import re
+import hashlib
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
@@ -10,44 +10,46 @@ from app.pipelines.base import BaseProcessor
 from app.utility.log import logger
 
 
+def clean_filename_keep_chinese(text: str) -> str:
+    """彻底清除文件名里的垃圾符号，只保留中文、英文、数字、下划线、点、短横线"""
+    garbage = '!"#$%&\'()*+,-/:;<=>?@[\\]^_`{|}~“”‘’《》〈〉‹›«»„“‟′″‵′〃＂[]【】'
+    text = text.translate(str.maketrans('', '', garbage))
+    return re.sub(r'[^\u4e00-\u9fff\w\.\-]+', '', text)
+
+
 def generate_stable_doc_id(
     binary: bytes,
     file_name: str,
     preferred_doc_id: Optional[str] = None,
-    source_system: str = "rag_upload",
+    source_system: str | None = None,
+    include_filename: bool = True,
 ) -> str:
     """
-    生成全局唯一且内容稳定的 doc_id（核心去重神器）
+    企业级最强 doc_id 生成器
     优先级：
-    1. 业务系统主动传入的 doc_id / business_id / archive_no / id
-    2. 文件内容 SHA256（内容完全一样 → 永远同 ID）
+    1. 业务系统主动传入的 ID
+    2. 清洗后的文件名 + 文件内容哈希（推荐！既去重又保留版本）
     """
     if preferred_doc_id and preferred_doc_id.strip():
         return preferred_doc_id.strip()
 
-    content_hash = hashlib.sha256(binary).hexdigest()
-    return f"{source_system}_{content_hash[:16]}"
+    source_system = source_system or os.getenv("SOURCE_SYSTEM", "rag_upload")
 
-def clean_filename_keep_chinese(text: str) -> str:
-    """
-    彻底清除文件名里所有标点符号、空格、引号，只保留：
-    中文、英文、数字、下划线、短横线
-    """
-    # 先干掉所有全角/半角引号和常见垃圾符号
-    garbage = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~“”‘’《》〈〉‹›«»„“‟′″‵′〃＂[]【】'
-    text = text.translate(str.maketrans('', '', garbage))
-    # 再只保留中文、英文、数字、-_
-    text = re.sub(r'[^\u4e00-\u9fff\w\-]+', '', text)
-    return text
+    hasher = hashlib.sha256()
+    if include_filename:
+        clean_name = clean_filename_keep_chinese(file_name)
+        hasher.update(clean_name.encode("utf-8"))
+        hasher.update(b"\0\0")          # 分隔符，防止哈希碰撞
+    hasher.update(binary)
+
+    return f"{source_system}_{hasher.hexdigest()[:16]}"
+
 
 class TikaProcessor(BaseProcessor):
-    """
-    终极生产级 Tika 解析器（2025 最新版）
-    已修复所有隐藏坑：get 函数、日期解析、扫描件判断、乱码、加密识别、内容去重
-    """
+    """终极生产级 Tika 解析器（2025 大厂标配版）"""
     order = 10
     TIKA_SERVER = os.getenv("TIKA_SERVER", "http://localhost:9998")
-    TIMEOUT = int(os.getenv("TIKA_TIMEOUT", "120"))
+    TIMEOUT = int(os.getenv("TIKA_TIMEOUT", "180"))
 
     def process(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         binary = data.get("binary")
@@ -55,10 +57,10 @@ class TikaProcessor(BaseProcessor):
         file_ext = os.path.splitext(file_name)[1].lstrip('.').lower() or "unknown"
 
         if not binary:
-            logger.warning("TikaProcessor: no binary data found")
+            logger.warning("TikaProcessor: no binary data")
             return {"raw_text": "", "metadata": {}}
 
-        # ==================== 生成内容稳定的 doc_id ====================
+        # ==================== 生成企业级稳定 doc_id ====================
         preferred_id = (
             data.get("doc_id")
             or data.get("business_id")
@@ -69,7 +71,8 @@ class TikaProcessor(BaseProcessor):
             binary=binary,
             file_name=file_name,
             preferred_doc_id=preferred_id,
-            source_system="rag_upload",
+            source_system=os.getenv("SOURCE_SYSTEM", "rag_upload"),
+            include_filename=True,          # 必须开！保留版本信息
         )
 
         try:
@@ -113,7 +116,7 @@ class TikaProcessor(BaseProcessor):
 
             logger.info(
                 f"TikaProcessor 成功 | doc_id: {stable_doc_id} | "
-                f"文件: {file_name} | 文本长度: {len(raw_text)} | "
+                f"文件: {file_name} | 长度: {len(raw_text)} | "
                 f"页数: {metadata.get('page_count', 'N/A')} | "
                 f"标题: {metadata.get('title', '无标题')[:60]}"
             )
@@ -143,41 +146,38 @@ class TikaProcessor(BaseProcessor):
         doc_id: str,
     ) -> Dict[str, Any]:
 
-        # ---------- 本地辅助函数：多字段兜底取值 ----------
         def get(*keys, default=""):
-            """永不返回 None，缺省返回 default（默认空字符串）"""
             for k in keys:
                 v = raw_meta.get(k)
                 if v is not None:
                     return v[0] if isinstance(v, list) else v
             return default
 
-        # ---------- 本地辅助函数：超健壮日期解析 ----------
         def parse_date(val):
             if not val:
                 return None
             s = str(val).replace("Z", "+00:00").split("+")[0].split(".")[0]
             for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
                 try:
-                    return datetime.strptime(s, fmt).isoformat()
+                    return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc).isoformat()
                 except:
                     continue
             return str(val)
 
-        # ---------- 开始组装最终 metadata ----------
         m = {}
 
+        # 核心身份
         m["doc_id"] = doc_id
         m["source_name"] = file_name
         m["source_type"] = file_ext
         m["source_size"] = len(binary)
-        #m["content_md5"] = hashlib.md5(binary).hexdigest()
-        #m["content_sha256"] = hashlib.sha256(binary).hexdigest()
+        m["content_md5"] = hashlib.md5(binary).hexdigest()
+        m["content_sha256"] = hashlib.sha256(binary).hexdigest()
         m["ingest_at"] = datetime.now(timezone.utc).isoformat(sep="T", timespec="milliseconds")
 
-        # 核心文档属性
-        m["title"] = get("dc:title", "title", "pdf:docinfo:title", "subject") or clean_filename_keep_chinese(os.path.splitext(file_name)[0])
-        m["author"] = get("dc:creator", "meta:author", "creator", "Author", "pdf:Author", "pdf:docinfo:creator")
+        # 文档属性（title 保持原始美观，不过度清洗）
+        m["title"] = get("dc:title", "title", "pdf:docinfo:title", "subject") or os.path.splitext(file_name)[0]
+        m["author"] = get("dc:creator", "meta:author", "creator", "Author", "pdf:Author", "pdf:docinfo:creator") or ""
         m["created_at"] = parse_date(get("dcterms:created", "meta:creation-date", "Creation-Date", "date"))
         m["modified_at"] = parse_date(get("dcterms:modified", "Last-Modified", "meta:save-date"))
         m["language"] = get("language", "dc:language", "Content-Language") or "zh-CN"
@@ -186,29 +186,26 @@ class TikaProcessor(BaseProcessor):
         pages = get("xmpTPg:NPages", "pdf:NPages", "Page-Count", "NumberOfPages")
         m["page_count"] = int(pages) if pages and str(pages).isdigit() else None
 
-        # 业务高价值字段
-        kw = get("keywords", "meta:keyword", "pdf:Keywords") or ""
+        # 业务字段
+        kw = get("keywords", "meta:keyword", "binary:Keywords") or ""
         m["keywords"] = [k.strip() for k in str(kw).split(",") if k.strip()]
-        m["company"] = get("Company", "dc:publisher")
-        m["category"] = get("Category")          # 常用于密级：内部公开 / 机密 / 绝密
-        m["producer"] = raw_meta.get("pdf:Producer", "")
-        #m["pdf_version"] = raw_meta.get("pdf:PDFVersion")
+        m["company"] = get("Company", "dc:publisher") or ""
+        m["category"] = get("Category") or ""          # 密级常在这里
+        m["producer"] = raw_meta.get("pdf:Producer", "") or ""
 
-        # 关键状态标记
-        #m["is_encrypted"] = raw_meta.get("pdf:encrypted") == "true"
-        #m["is_scanned_pdf"] = self._detect_scanned_pdf(raw_text, m)
+        # 关键状态（后面清洗/OCR 必须依赖）
+        m["is_encrypted"] = raw_meta.get("pdf:encrypted") == "true"
+        m["is_scanned_pdf"] = self._detect_scanned_pdf(raw_text, m)
         m["raw_text_length"] = len(raw_text)
 
         return m
 
-    # ============================== 扫描件判断 ==============================
     @staticmethod
     def _detect_scanned_pdf(text: str, meta: dict) -> bool:
-        """实测准确率 98.7% 的扫描件判断"""
         producer = meta.get("producer", "").lower()
-        scan_keywords = ["scan", "image", "mfp", "scanner", "canon", "fujitsu", "kodak", "hp", "ricoh", "epson"]
+        scan_keywords = ["scan", "image", "mfp", "scanner", "canon", "fujitsu", "kodak", "hp", "ricoh", "epson", "pdfscan"]
         if any(k in producer for k in scan_keywords):
             return True
-        if len(text.strip()) < 500 and meta.get("page_count", 0) > 3:
+        if len(text.strip()) < 600 and meta.get("page_count", 0) > 3:
             return True
         return False
