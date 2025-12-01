@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: Optional[str] = "gpt-3.5-turbo"  # Default value
     OPENAI_EMBEDDING_MODEL: Optional[str] = None
-    ALI_QWEN_MAX_API_KEY: Optional[str] = None
+    ALI_QWEN_API_KEY: Optional[str] = None
     ALI_QWEN_API_URL: Optional[str] = None
     ALI_QWEN_MODEL: Optional[str] = "qwen-plus"  # Default value
     ALI_EMBEDDING_MODEL: Optional[str] = None
@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     OLLAMA_URL: Optional[str] = "http://localhost:11434"  # Default value
     ALLOWED_ORIGINS: Optional[str] = "http://localhost:3000"  # Default value
+
+    GOOGLE_API_KEY: Optional[str] = None
+
     CHROMA_SERVER_HOST: Optional[str] = "101.201.59.188"
     CHROMA_SERVER_HTTP_PORT: Optional[int] = 8000
     CHROMA_COLLECTION_NAME: Optional[str] = None

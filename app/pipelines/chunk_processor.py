@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 from app.pipelines.base import BaseProcessor
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from app.utility.log import logger
 
 
 class ChunkProcessor(BaseProcessor):
@@ -42,6 +43,6 @@ class ChunkProcessor(BaseProcessor):
         chunks = self.splitter.split_text(text)
 
         # 这里我们也可以顺便统计一下元数据，比如切分后的块数量
-        print(f"Split text into {len(chunks)} chunks.")
+        logger.info(f"Split text into {len(chunks)} chunks.")
 
         return {"chunks": chunks}

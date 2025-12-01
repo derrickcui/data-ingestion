@@ -1,45 +1,83 @@
-from typing import Dict, Any, Optional
+# app/processors/assemble.py
+import json
+from typing import Dict, Any, Optional, List
 import uuid
-import datetime
+from datetime import datetime, timezone
 from app.pipelines.base import BaseProcessor
+from app.utility.log import logger
+
 
 class AssembleProcessor(BaseProcessor):
-    """
-    把所有 processors 的中间结果整合成统一 JSON Document。
-    这是整个 pipeline 的最终产物（用于 Solr / Chroma / 前端展示）。
-    """
-
-    order = 100  # 通常放在最后执行
+    order = 100
 
     def process(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         context = context or {}
-
-        # 从之前 processors 获取内容
+        del data['binary']
         raw_text = data.get("raw_text", "")
         clean_text = data.get("clean_text", "")
         chunks = data.get("chunks", [])
         embeddings = data.get("embeddings", [])
-        llm_metadata = data.get("metadata", {})  # 与之前 LLMProcessor 返回的 key 对齐
+        llm_metadata = data.get("metadata", {}) or {}
+        parent_id = context.get("doc_id") or str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat(sep="T", timespec="milliseconds")
+        # ============ 1. 主文档（仅用于 Solr 等混合检索库） ============
+        main_doc = {
+            "id": parent_id,
+            "doc_id": parent_id,
+            "doc_type": "document",
+            "raw_content": raw_text,
+            "content": clean_text,
+            "title": llm_metadata.get("title", ""),
+            "author": llm_metadata.get("author", ""),
+            "source_name": llm_metadata.get("source_name", context.get("file_name", "")),
+            "source_type": llm_metadata.get("source_type", ""),
+            "source_path": context.get("source_path", ""),
 
-        # 生成统一 doc_id（如 context 中已有则沿用）
-        doc_id = context.get("doc_id") or str(uuid.uuid4())
-
-        # 统一 metadata
-        document = {
-            "doc_id": doc_id,
-            "source_path": context.get("source_path"),
-            "timestamp": datetime.datetime.utcnow().isoformat(),
-
-            # --- 展示用 ---
-            "raw_text": raw_text,
-            "clean_text": clean_text,
-
-            # --- Chunk + Embedding ---
-            "chunks": chunks,
-            "embeddings": embeddings,
-
-            # --- LLM 增强 ---
-            "metadata": llm_metadata
+            "source": llm_metadata.get("source", ""),
+            "created_at": llm_metadata.get("created_at", ""),
+            "modified_at": llm_metadata.get("modified_at", ""),
+            "keywords": llm_metadata.get("keywords", ""),
+            "summary": llm_metadata.get("summary", ""),
+            "section_title": llm_metadata.get("section_title", ""),
+            "language": llm_metadata.get("language", ""),
+            "chunk_count": len(embeddings or []),
+            "timestamp": now,
+            **{k: v for k, v in llm_metadata.items() if k not in {"title", "author", "filename", "filetype"}},
         }
 
-        return document
+        # ============ 2. Chunk 文档（Solr + 所有向量库都需要） ============
+        chunk_docs = [
+            {
+                "id": f"{parent_id}_chunk_{idx:06d}",
+                "doc_id": f"{parent_id}_chunk_{idx:06d}",
+                "doc_type": "chunk",
+                "parent_id": parent_id,
+                "chunk_index": idx,
+                "chunk_content": chunk_text,
+                "_gl_vector": embedding.get('embedding',[]),  # Solr 用的向量字段
+
+                # 继承主文档元数据，方便过滤
+                "title": main_doc["title"],
+                "author": main_doc["author"],
+                "source_name": main_doc["source_name"],
+                "source_type": main_doc["source_type"],
+                "source_path": main_doc["source_path"],
+                "timestamp": now,
+
+                # 额外字段供向量库使用（可自由扩展）
+                #"metadata": {                          # 向量库 metadata
+                #    "doc_id": parent_id,
+                #    "chunk_index": idx,
+                #    "source_path": main_doc["source_path"],
+                #    "title": main_doc["title"],
+                #}
+            }
+            for idx, (chunk_text, embedding) in enumerate(zip(chunks, embeddings))
+        ]
+
+        # ============ 最终返回：一次返回两种结构，所有 Sink 各取所需 ============
+        return {
+            "solr_docs": [main_doc, *chunk_docs],    # Solr 直接吃这个
+            "vector_docs": chunk_docs,               # 所有向量库只吃这个
+            "parent_id": parent_id,                  # 方便日志追踪
+        }

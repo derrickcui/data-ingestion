@@ -15,6 +15,6 @@ class FileSource(BaseSource):
         context.setdefault("file", {})["filename"] = self.filename
 
         return {
-            "filename": self.filename,
+            "file_name": self.filename,
             "binary": self.content
         }

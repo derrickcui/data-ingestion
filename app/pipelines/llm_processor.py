@@ -15,10 +15,10 @@ class LLMProcessor(BaseProcessor):
     def process(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         text = data.get("clean_text", "")
         if not text:
-            return {"metadata": ""}
+            return {"business_glossary": ""}
 
         result = self.client.analyze(text, self.task)
-        return {"metadata": result}
+        return {"business_glossary": result}
 
     """
     def process(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

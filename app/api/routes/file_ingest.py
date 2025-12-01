@@ -6,6 +6,7 @@ from typing import Optional
 from app.ai_providers.aliyun_llm_client import AliyunLLMClient
 from app.ai_providers.google_llm_client import GoogleLLMClient
 from app.ai_providers.openai_llm_client import OpenAILLMClient
+from app.utility.config import Config
 from app.worker.tasks import ingest_file_task
 from app.orchestrator.pipeline_runner import PipelineRunner
 from app.sources.file_source import FileSource
@@ -26,7 +27,7 @@ def _make_runner(
     llm_client: Optional[object] = None  # 可传 OpenAI/ALI/Google LLM client
 ):
     source = FileSource(filename, content)
-    sinks = [SolrSink(), ChromaSink()]
+    sinks = [SolrSink()]
 
     processor_classes = load_all_processor_classes()
     processors = []
@@ -53,14 +54,8 @@ async def upload_sync(
         # 强制将 provider 识别为 URL 查询参数
         provider: Optional[str] = Query(
             None,
-            description="用于文件上传或处理的服务提供商标识 (例如: 'Azure', 'S3')",
-            example="Azure"
-        ),
-        # 强制将 api_key 识别为 URL 查询参数
-        api_key: Optional[str] = Query(
-            None,
-            description="用于鉴权或连接外部服务的 API 密钥",
-            example="sk-xxxxxxxx"
+            description="用于文件上传或处理的服务提供商标识 (例如: 'ali', 'openai', 'google')",
+            example="ali"
         )
 ):
     """
@@ -72,17 +67,17 @@ async def upload_sync(
     # 根据 provider 初始化 embedding client
     embedding_client = None
     llm_client = None
-    if provider and api_key:
+    if provider:
         provider = provider.lower()
         if provider == "openai":
-            embedding_client = OpenAIEmbeddingClient(api_key)
-            llm_client = OpenAILLMClient(api_key)
+            embedding_client = OpenAIEmbeddingClient(Config.OPENAI_API_KEY)
+            llm_client = OpenAILLMClient(Config.OPENAI_API_KEY)
         elif provider == "ali":
-            embedding_client = AliEmbeddingClient(api_key)
-            llm_client = AliyunLLMClient(api_key)
+            embedding_client = AliEmbeddingClient(Config.ALI_QWEN_API_KEY)
+            llm_client = AliyunLLMClient(Config.ALI_QWEN_API_KEY)
         elif provider == "google":
-            embedding_client = GoogleEmbeddingClient(api_key)
-            llm_client = GoogleLLMClient(api_key)
+            embedding_client = GoogleEmbeddingClient(Config.GOOGLE_API_KEY)
+            llm_client = GoogleLLMClient(Config.GOOGLE_API_KEY)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
