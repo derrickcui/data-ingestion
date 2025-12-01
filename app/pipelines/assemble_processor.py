@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from app.pipelines.base import BaseProcessor
 from app.utility.log import logger
+from app.utility.utils import generate_professional_uuid_id
 
 
 class AssembleProcessor(BaseProcessor):
@@ -17,38 +18,39 @@ class AssembleProcessor(BaseProcessor):
         clean_text = data.get("clean_text", "")
         chunks = data.get("chunks", [])
         embeddings = data.get("embeddings", [])
-        llm_metadata = data.get("metadata", {}) or {}
-        parent_id = context.get("doc_id") or str(uuid.uuid4())
+        metadata = data.get("metadata", {}) or {}
+        parent_id = metadata.get("doc_id") or str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat(sep="T", timespec="milliseconds")
+
         # ============ 1. 主文档（仅用于 Solr 等混合检索库） ============
         main_doc = {
-            "id": parent_id,
+            "id": generate_professional_uuid_id(parent_id),
             "doc_id": parent_id,
             "doc_type": "document",
             "raw_content": raw_text,
             "content": clean_text,
-            "title": llm_metadata.get("title", ""),
-            "author": llm_metadata.get("author", ""),
-            "source_name": llm_metadata.get("source_name", context.get("file_name", "")),
-            "source_type": llm_metadata.get("source_type", ""),
+            "title": metadata.get("title", ""),
+            "author": metadata.get("author", ""),
+            "source_name": metadata.get("source_name", context.get("file_name", "")),
+            "source_type": metadata.get("source_type", ""),
             "source_path": context.get("source_path", ""),
 
-            "source": llm_metadata.get("source", ""),
-            "created_at": llm_metadata.get("created_at", ""),
-            "modified_at": llm_metadata.get("modified_at", ""),
-            "keywords": llm_metadata.get("keywords", ""),
-            "summary": llm_metadata.get("summary", ""),
-            "section_title": llm_metadata.get("section_title", ""),
-            "language": llm_metadata.get("language", ""),
+            "source": metadata.get("source", ""),
+            "created_at": metadata.get("created_at", ""),
+            "modified_at": metadata.get("modified_at", ""),
+            "keywords": metadata.get("keywords", ""),
+            "summary": metadata.get("summary", ""),
+            "section_title": metadata.get("section_title", ""),
+            "language": metadata.get("language", ""),
             "chunk_count": len(embeddings or []),
             "timestamp": now,
-            **{k: v for k, v in llm_metadata.items() if k not in {"title", "author", "filename", "filetype"}},
+            **{k: v for k, v in metadata.items() if k not in {"title", "author", "filename", "filetype"}},
         }
 
         # ============ 2. Chunk 文档（Solr + 所有向量库都需要） ============
         chunk_docs = [
             {
-                "id": f"{parent_id}_chunk_{idx:06d}",
+                "id": generate_professional_uuid_id(f"{parent_id}_chunk_{idx:06d}"),
                 "doc_id": f"{parent_id}_chunk_{idx:06d}",
                 "doc_type": "chunk",
                 "parent_id": parent_id,
