@@ -60,7 +60,6 @@ class TikaProcessor(BaseProcessor):
         # 假设 FileSource/PipelineRunner 将用户元数据放在 "user_metadata" 键下
         user_metadata = data.get("user_metadata", {})
 
-        logger.info(f"》》》》user_metadata:{user_metadata}")
         if not binary:
             logger.warning("TikaProcessor: no binary data")
             return {"raw_text": "", "metadata": {}}

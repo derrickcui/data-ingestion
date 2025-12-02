@@ -13,7 +13,8 @@ class AssembleProcessor(BaseProcessor):
 
     def process(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         context = context or {}
-        del data['binary']
+        if "binary" in data:
+            del data["binary"]
         raw_text = data.get("raw_text", "")
         clean_text = data.get("clean_text", "")
         chunks = data.get("chunks", [])

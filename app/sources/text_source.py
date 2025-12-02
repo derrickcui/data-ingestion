@@ -16,5 +16,5 @@ class TextSource(BaseSource):
 
         return {
             "file_name": self.filename,
-            "binary": self.text.encode("utf-8")
+            "raw_text": self.text,        # ← 关键！必须传 raw_text
         }
