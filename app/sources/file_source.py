@@ -5,6 +5,7 @@ from app.sources.base import BaseSource
 
 class FileSource(BaseSource):
     def __init__(self, filename: str, content: bytes):
+        self.user_metadata = None
         self.filename = filename
         self.content = content
 
@@ -14,7 +15,13 @@ class FileSource(BaseSource):
             context = {}
         context.setdefault("file", {})["filename"] = self.filename
 
-        return {
+        result = {
             "file_name": self.filename,
-            "binary": self.content
+            "binary": self.content,
         }
+
+        # ✅ 如果 user_metadata 存在，就放进返回的 dict
+        if self.user_metadata:
+            result["user_metadata"] = self.user_metadata
+
+        return result

@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     CHROMA_SERVER_HTTP_PORT: Optional[int] = 8000
     CHROMA_COLLECTION_NAME: Optional[str] = None
     SOLR_URL: Optional[str] = None
+    TIKA_SERVICE_URL: Optional[str] = None
+    TIKA_SERVICE_TIMEOUT: Optional[int] = 8000
     TESSERACT_PATH: Optional[str] = None
     LIBRE_OFFICE_PATH: Optional[str] = None
     POPPLER_PATH: Optional[str] = None

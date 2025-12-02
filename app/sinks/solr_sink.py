@@ -30,4 +30,4 @@ class SolrSink(BaseSink):
             logger.error(f"solr sink failed: {e}")
             # 这里不要 raise（或者根据需要决定），以免阻塞整个 pipeline
             # 建议记录日志
-            pass
+            raise
