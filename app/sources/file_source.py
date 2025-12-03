@@ -18,6 +18,7 @@ class FileSource(BaseSource):
         result = {
             "file_name": self.filename,
             "binary": self.content,
+            "source_type": "file"
         }
 
         # ✅ 如果 user_metadata 存在，就放进返回的 dict

@@ -48,10 +48,13 @@ class IngestStructuredRequest(BaseModel):
     # 元数据和 Provider
     metadata: Optional[Dict[str, Any]] = Field(None, description="可选的业务元数据对象")
     provider: Optional[str] = Field(None, description="embedding/LLM provider，如 ali, openai, google")
+    source_system: Optional[str] = Field(None, description="来源系统标识，用于 Doc ID 生成") # <-- ADDED
 
     # 确保只传入一个内容字段
     @classmethod
     def __pydantic_validator__(cls, values):
+        # 注意: 在 Pydantic V2 中，应该使用 @model_validator(mode='before') 或 @field_validator
+        # 但为了保持代码兼容性，我们保留这个 classmethod 验证
         if values.get('source_type') == 'text' and not values.get('text'):
             raise ValueError("text is required when source_type is 'text'")
         if values.get('source_type') == 'uri' and not values.get('uri'):
@@ -62,7 +65,7 @@ class IngestStructuredRequest(BaseModel):
 
 
 # -------------------------------------------------
-#   构建 Pipeline Runner（核心逻辑：动态 Tika 跳过）
+#   构建 Pipeline Runner（核心逻辑：移除 Tika 动态跳过）
 # -------------------------------------------------
 def _make_runner(
         filename: str,
@@ -70,7 +73,8 @@ def _make_runner(
         metadata: Optional[dict] = None,
         embedding_client: Optional[object] = None,
         llm_client: Optional[object] = None,
-        source_type: str = "file"
+        source_type: str = "file",
+        source_system: Optional[str] = None # <-- ADDED
 ):
     """根据不同 source_type 生成不同 Source 对象并配置 PipelineRunner"""
 
@@ -94,10 +98,17 @@ def _make_runner(
         raise ValueError(f"Unsupported source_type: {source_type}")
 
     # 2. 加入 metadata
-    if metadata:
-        # 假设所有 Source 类都有 user_metadata 属性
-        source.user_metadata = metadata
-        logger.info(f"Attached metadata to file source: {metadata}")
+    final_metadata = metadata.copy() if metadata else {}
+    if source_system:
+        # 将 source_system 注入到 metadata 中，供 IdProcessor 读取
+        final_metadata["source_system"] = source_system
+        logger.info(f"Attached source_system: {source_system} to metadata.")
+
+    if final_metadata:
+        # 假设所有 Source 类都有 user_metadata 属性，并直接赋值。
+        source.user_metadata = final_metadata
+        logger.info(f"Attached metadata to source: {final_metadata}")
+
 
     # 3. Sink
     sinks = [SolrSink()]
@@ -106,17 +117,9 @@ def _make_runner(
     processor_classes = load_all_processor_classes()
     processors = []
 
-    # 确定是否需要 Tika 解析
-    # FileSource, URISource, Base64Source 都是原始文档或二进制内容，需要Tika/外部解析
-    should_run_tika = source_type in ["file", "uri", "base64"]
-
+    # 统一处理所有 Processor：
     for cls in processor_classes:
         processor_name = cls.__name__
-
-        # 动态跳过 TikaProcessor 逻辑
-        if processor_name == "TikaProcessor" and not should_run_tika:
-            logger.info(f"Skipping {processor_name} for source_type='{source_type}'")
-            continue
 
         if processor_name == "EmbedProcessor" and embedding_client:
             processors.append(cls(client=embedding_client))
@@ -160,7 +163,8 @@ def _initialize_clients(provider: Optional[str]):
 async def upload(
         file: UploadFile = File(..., description="要上传的文档文件"),
         metadata: Optional[str] = Form(None, description='可选 JSON 格式元数据字符串'),
-        provider: Optional[str] = Query(None, description="embedding/LLM provider")
+        provider: Optional[str] = Query(None, description="embedding/LLM provider"),
+        source_system: Optional[str] = Query(None, description="来源系统标识，用于 Doc ID 生成") # <-- ADDED
 ):
     """
     接收文件和可选元数据，进行同步摄取。
@@ -189,7 +193,8 @@ async def upload(
         metadata=parsed_metadata,
         embedding_client=embedding_client,
         llm_client=llm_client,
-        source_type="file"
+        source_type="file",
+        source_system=source_system # <-- PASSED
     )
 
     # 5. ThreadPool 运行
@@ -250,13 +255,15 @@ async def ingest_structured(requests: List[IngestStructuredRequest]):
             filename = "base64_input"
 
         # 3. 构造 Runner (source_type 匹配)
+        logger.info(f"source_teem:{req.source_system}")
         runner = _make_runner(
             filename=filename,
             content=content,
             metadata=req.metadata,
             embedding_client=embedding_client,
             llm_client=llm_client,
-            source_type=source_type
+            source_type=source_type,
+            source_system=req.source_system # <-- PASSED
         )
 
         # 4. ThreadPool 运行 pipeline（同步接口，通过线程池 offload 阻塞任务）

@@ -5,6 +5,7 @@ from app.sources.base import BaseSource
 
 class TextSource(BaseSource):
     def __init__(self, text: str, filename: str = "text_input.txt"):
+        self.user_metadata = None
         self.text = text
         self.filename = filename
 
@@ -14,7 +15,14 @@ class TextSource(BaseSource):
 
         context.setdefault("file", {})["filename"] = self.filename
 
-        return {
+        result = {
             "file_name": self.filename,
             "raw_text": self.text,        # ← 关键！必须传 raw_text
+            "source_type": "text"
         }
+
+        # ✅ 如果 user_metadata 存在，就放进返回的 dict
+        if self.user_metadata:
+            result["user_metadata"] = self.user_metadata
+
+        return result

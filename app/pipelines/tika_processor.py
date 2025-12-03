@@ -1,5 +1,4 @@
 import os
-import re
 import hashlib
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
@@ -10,76 +9,45 @@ from app.utility.log import logger
 from app.utility.config import Config
 
 
-def clean_filename_keep_chinese(text: str) -> str:
-    """彻底清除文件名里的垃圾符号，只保留中文、英文、数字、下划线、点、短横线"""
-    garbage = '!"#$%&\'()*+,-/:;<=>?@[\\]^_`{|}~“”‘’《》〈〉‹›«»„“‟′″‵′〃＂[]【】'
-    text = text.translate(str.maketrans('', '', garbage))
-    return re.sub(r'[^\u4e00-\u9fff\w\.\-]+', '', text)
-
-
-def generate_stable_doc_id(
-        binary: bytes,
-        file_name: str,
-        preferred_doc_id: Optional[str] = None,
-        source_system: str | None = None,
-        include_filename: bool = True,
-) -> str:
-    """
-    企业级最强 doc_id 生成器
-    优先级：
-    1. 业务系统主动传入的 ID
-    2. 清洗后的文件名 + 文件内容哈希（推荐！既去重又保留版本）
-    """
-    if preferred_doc_id and preferred_doc_id.strip():
-        return preferred_doc_id.strip()
-
-    source_system = source_system or os.getenv("SOURCE_SYSTEM", "rag_upload")
-
-    hasher = hashlib.sha256()
-    if include_filename:
-        clean_name = clean_filename_keep_chinese(file_name)
-        hasher.update(clean_name.encode("utf-8"))
-        hasher.update(b"\0\0")  # 分隔符，防止哈希碰撞
-    hasher.update(binary)
-
-    return f"{source_system}_{hasher.hexdigest()[:16]}"
-
-
 class TikaProcessor(BaseProcessor):
-    """终极生产级 Tika 解析器（2025 大厂标配版）"""
+    """终极生产级 Tika 解析器（2025 大厂标配版）。ID 生成逻辑已移至 IdProcessor。"""
     order = 10
     TIKA_SERVER = Config.TIKA_SERVICE_URL
     TIMEOUT = Config.TIKA_SERVICE_TIMEOUT
 
     def process(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         binary = data.get("binary")
+        # 假设 IdProcessor 已经运行，并把 doc_id 注入到 data 中
+        stable_doc_id = data.get("doc_id")
         file_name = data.get("file_name", "unknown_file")
         file_ext = os.path.splitext(file_name)[1].lstrip('.').lower() or "unknown"
 
-        # 获取上游（FileSource）传入的用户自定义元数据
-        # 假设 FileSource/PipelineRunner 将用户元数据放在 "user_metadata" 键下
+        # 获取上游（Source）传入的用户自定义元数据
         user_metadata = data.get("user_metadata", {})
 
-        if not binary:
-            logger.warning("TikaProcessor: no binary data")
-            return {"raw_text": "", "metadata": {}}
+        # NEW: 提取用户指定的 ingestion_method
+        # 优先级：user_metadata > data.ingestion_method > data.type (Source 提供的) > 默认值
+        ingestion_method = (
+                user_metadata.get("ingestion_method")
+                or data.get("ingestion_method")
+                or data.get("source_type")  # <-- 修复点：检查 Source 提供的 'type' 字段
+                or "file_upload"  # 默认值
+        )
 
-        # ==================== 生成企业级稳定 doc_id ====================
-        # 在生成 doc_id 时，优先使用用户元数据或传入的业务 ID
-        preferred_id = (
-                user_metadata.get("doc_id")  # 优先使用用户在 API 中传入的 doc_id
-                or data.get("doc_id")
-                or data.get("business_id")
-                or data.get("archive_no")
-                or data.get("id")
-        )
-        stable_doc_id = generate_stable_doc_id(
-            binary=binary,
-            file_name=file_name,
-            preferred_doc_id=preferred_id,
-            source_system=os.getenv("SOURCE_SYSTEM", "rag_upload"),
-            include_filename=True,  # 必须开！保留版本信息
-        )
+        if not binary:
+            logger.warning("TikaProcessor: no binary data. Returning raw_text and merging user_metadata.")
+            # 修复点: 即使没有 binary，也必须确保返回的 metadata 中包含完整的 user_metadata
+            merged_metadata = {
+                "doc_id": stable_doc_id,
+                "ingestion_method": ingestion_method,
+                **user_metadata  # <-- 核心修复：合并所有用户传入的元数据
+            }
+            return {"raw_text": data.get("raw_text"), "metadata": merged_metadata}
+
+        if not stable_doc_id:
+            logger.error("TikaProcessor failed: doc_id not found in data. IdProcessor may have been skipped.")
+            # 强行设置一个 fallback ID 以避免崩溃，但这是错误情况
+            stable_doc_id = "error_fallback_" + hashlib.sha256(binary).hexdigest()[:10]
 
         try:
             # ==================== 提取纯文本 ====================
@@ -117,15 +85,17 @@ class TikaProcessor(BaseProcessor):
                 file_ext=file_ext,
                 raw_text=raw_text,
                 binary=binary,
-                doc_id=stable_doc_id,
-                user_metadata=user_metadata,  # <-- NEW: 传入用户自定义元数据
+                doc_id=stable_doc_id,  # 使用 IdProcessor 传入的 ID
+                user_metadata=user_metadata,
+                ingestion_method=ingestion_method,  # NEW: 传入上传方式
             )
 
             logger.info(
                 f"TikaProcessor 成功 | doc_id: {stable_doc_id} | "
                 f"文件: {file_name} | 长度: {len(raw_text)} | "
                 f"页数: {metadata.get('page_count', 'N/A')} | "
-                f"标题: {metadata.get('title', '无标题')[:60]}"
+                f"标题: {metadata.get('title', '无标题')[:60]} | "
+                f"上传方式: {ingestion_method}"  # NEW: Log中显示上传方式
             )
 
             return {
@@ -151,13 +121,15 @@ class TikaProcessor(BaseProcessor):
             raw_text: str,
             binary: bytes,
             doc_id: str,
-            user_metadata: Dict[str, Any],  # <-- NEW: 接收用户元数据
+            user_metadata: Dict[str, Any],
+            ingestion_method: str,  # NEW: 接收上传方式
     ) -> Dict[str, Any]:
 
         def get(*keys, default=""):
             for k in keys:
                 v = raw_meta.get(k)
                 if v is not None:
+                    # 确保处理列表类型的值
                     return v[0] if isinstance(v, list) else v
             return default
 
@@ -175,10 +147,12 @@ class TikaProcessor(BaseProcessor):
         m = {}
 
         # 核心身份
-        m["doc_id"] = doc_id
+        m["doc_id"] = doc_id  # 直接使用传入的 ID
+        m["ingestion_method"] = ingestion_method  # NEW: 记录上传方式
         m["source_name"] = file_name
         m["source_type"] = file_ext
         m["source_size"] = len(binary)
+        # 保持哈希计算
         m["content_md5"] = hashlib.md5(binary).hexdigest()
         m["content_sha256"] = hashlib.sha256(binary).hexdigest()
         m["ingest_at"] = datetime.now(timezone.utc).isoformat(sep="T", timespec="milliseconds")
@@ -209,6 +183,9 @@ class TikaProcessor(BaseProcessor):
         # ==================== NEW: 合并用户自定义元数据 ====================
         # 用户提供的元数据具有最高优先级，覆盖Tika解析的值
         m.update(user_metadata)
+        # 确保 ingestion_method 不会被 user_metadata 中已有的同名键覆盖 (除非用户明确想覆盖)
+        if "ingestion_method" not in m:
+            m["ingestion_method"] = ingestion_method
         logger.debug(f"Merged user metadata: {user_metadata.keys()}")
         # ===================================================================
 

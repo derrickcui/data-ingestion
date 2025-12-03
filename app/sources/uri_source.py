@@ -21,5 +21,6 @@ class URISource(BaseSource):
 
         return {
             "file_name": self.filename,
-            "binary": resp.content
+            "binary": resp.content,
+            "source_type": "text"
         }
