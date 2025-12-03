@@ -3,12 +3,13 @@ from typing import Optional, Dict, Any, Union, List
 import json
 import base64
 import requests
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # 导入所有内部依赖（假设这些类已定义且可用）
 from app.ai_providers.aliyun_llm_client import AliyunLLMClient
 from app.ai_providers.google_llm_client import GoogleLLMClient
 from app.ai_providers.openai_llm_client import OpenAILLMClient
+from app.sources.web_crawler_source import WebCrawlerSource
 from app.utility.config import Config
 from app.orchestrator.pipeline_runner import PipelineRunner
 from app.sources.file_source import FileSource
@@ -51,16 +52,21 @@ class IngestStructuredRequest(BaseModel):
     source_system: Optional[str] = Field(None, description="来源系统标识，用于 Doc ID 生成") # <-- ADDED
 
     # 确保只传入一个内容字段
-    @classmethod
-    def __pydantic_validator__(cls, values):
-        # 注意: 在 Pydantic V2 中，应该使用 @model_validator(mode='before') 或 @field_validator
-        # 但为了保持代码兼容性，我们保留这个 classmethod 验证
-        if values.get('source_type') == 'text' and not values.get('text'):
+    # 根校验器，确保 source_type 与内容匹配
+    # -------------------------------
+    # Pydantic V2 style validator
+    # -------------------------------
+    @model_validator(mode='before')
+    def validate_source_type_fields(cls, values):
+        stype = values.get("source_type")
+        if stype == "text" and not values.get("text"):
             raise ValueError("text is required when source_type is 'text'")
-        if values.get('source_type') == 'uri' and not values.get('uri'):
+        if stype == "uri" and not values.get("uri"):
             raise ValueError("uri is required when source_type is 'uri'")
-        if values.get('source_type') == 'base64' and not values.get('base64_content'):
+        if stype == "base64" and not values.get("base64_content"):
             raise ValueError("base64_content is required when source_type is 'base64'")
+        if stype == "web" and not values.get("uri"):
+            raise ValueError("uri (start_url) is required when source_type is 'web'")
         return values
 
 
@@ -93,6 +99,16 @@ def _make_runner(
     elif source_type == "base64":
         source = Base64Source(filename, content)  # content is bytes (encoded string)
 
+    elif source_type == "web":
+        if not content:
+            raise HTTPException(400, detail="source_type='web' requires a valid 'uri' field")
+        max_depth = metadata.get("max_depth", 2) if metadata else 2
+        allowed_exts = metadata.get("allowed_extensions") if metadata else None
+        source = WebCrawlerSource(
+            start_url=content,
+            max_depth=max_depth,
+            allowed_extensions=allowed_exts
+        )
     else:
         # 这个分支理论上不应该在 API 层面触发，因为已被验证
         raise ValueError(f"Unsupported source_type: {source_type}")
@@ -209,53 +225,52 @@ async def upload(
 # -------------------------------------------------
 #   2. 统一结构化数据摄取接口 (JSON Body)
 # -------------------------------------------------
-@router.post("/ingest", summary="统一结构化数据摄取入口（批量 Text/URI/Base64）")
-async def ingest_structured(requests: List[IngestStructuredRequest]):
+@router.post("/ingest", summary="统一结构化数据摄取入口（支持单对象或数组）")
+async def ingest_structured(request: Union[IngestStructuredRequest, List[IngestStructuredRequest]]):
     """
-    接收结构化 JSON Body 数组，批量处理文本、URI或Base64内容。
-    Content-Type 必须是 application/json。
+    接收结构化 JSON Body：
+    - 单个对象
+    - 或对象数组
+    批量处理文本、URI/Base64/Web内容
     """
 
-    if not requests:
+    # 统一成列表
+    if isinstance(request, IngestStructuredRequest):
+        requests_list = [request]
+    else:
+        requests_list = request
+
+    if not requests_list:
         return {"status": "completed", "total_requests": 0, "results": []}
 
     all_results = []
 
-    # 循环处理数组中的每一个请求
-    for req in requests:
+    for req in requests_list:
         source_type = req.source_type
 
-        # 1. 初始化 Client
+        # 初始化客户端
         try:
-            # 客户端在循环内初始化，确保每个请求都能正确配置 provider
             embedding_client, llm_client = _initialize_clients(req.provider)
         except HTTPException as e:
-            # 记录并跳过失败的请求
             all_results.append({"status": "failed", "source_type": source_type, "error": str(e.detail)})
-            logger.error(f"Client initialization failed for {source_type}: {e.detail}")
             continue
 
-        # 2. 提取内容和文件名 (根据 source_type)
+        # 提取内容和文件名
         content = None
-        filename = "inline_doc"  # 默认文件名
+        filename = "inline_doc"
 
         if source_type == "text":
             content = req.text
             filename = "inline_text"
-
-        elif source_type == "uri":
+        elif source_type in ["uri", "web"]:
             content = req.uri
-            # 尝试从 URI 提取文件名
             if content:
                 filename = content.split("/")[-1].split("?")[0].split("#")[0] or "remote_file"
-
         elif source_type == "base64":
-            # Base64Source 期望一个 base64 字符串
             content = req.base64_content
             filename = "base64_input"
 
-        # 3. 构造 Runner (source_type 匹配)
-        logger.info(f"source_teem:{req.source_system}")
+        # 构造 Runner
         runner = _make_runner(
             filename=filename,
             content=content,
@@ -263,18 +278,14 @@ async def ingest_structured(requests: List[IngestStructuredRequest]):
             embedding_client=embedding_client,
             llm_client=llm_client,
             source_type=source_type,
-            source_system=req.source_system # <-- PASSED
+            source_system=req.source_system
         )
 
-        # 4. ThreadPool 运行 pipeline（同步接口，通过线程池 offload 阻塞任务）
+        # 执行 pipeline
         try:
-            # 使用 run_in_threadpool 确保同步的 runner.run() 不会阻塞主 async 线程
             result = await run_in_threadpool(runner.run)
             all_results.append({"status": "ok", "source_type": source_type, "result": result})
-
         except Exception as e:
-            logger.error(f"Structured ingest pipeline failed for {source_type}: {e}")
-            all_results.append({"status": "failed", "source_type": source_type, "error": f"Pipeline failed: {e}"})
+            all_results.append({"status": "failed", "source_type": source_type, "error": str(e)})
 
-    # 返回批量处理的结果
-    return {"status": "completed", "total_requests": len(requests), "results": all_results}
+    return {"status": "completed", "total_requests": len(requests_list), "results": all_results}

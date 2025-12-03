@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     SOLR_URL: Optional[str] = None
     TIKA_SERVICE_URL: Optional[str] = None
     TIKA_SERVICE_TIMEOUT: Optional[int] = 8000
+    MAX_WEB_CRAWLER_CONCURRENCY: Optional[int] = 5
     TESSERACT_PATH: Optional[str] = None
     LIBRE_OFFICE_PATH: Optional[str] = None
     POPPLER_PATH: Optional[str] = None

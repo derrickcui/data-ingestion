@@ -1,5 +1,7 @@
 # app/sources/uri_source.py
 import os
+import re
+
 import requests
 from typing import Dict, Any, Optional, List
 from urllib.parse import urlparse
@@ -116,15 +118,26 @@ class URISource(BaseSource):
     # HTTP/HTTPS 下载处理
     # --------------------------
     def _process_http(self, url: str) -> Dict[str, Any]:
+        """
+        下载 HTTP/HTTPS 文件，同时返回 source_path（原始 URL）。
+        如果 URL 没有明显文件名，用 'remote_file' 或 URL 中最后一段清理生成。
+        """
         logger.info(f"[URISource] Downloading URL: {url}")
-        resp = requests.get(url, timeout=20)
-        resp.raise_for_status()
+        try:
+            resp = requests.get(url, timeout=20)
+            resp.raise_for_status()
+        except Exception as e:
+            raise ValueError(f"Failed to download {url}: {e}")
+
+        # 尝试从 URL 获取文件名
         filename = url.split("/")[-1].split("?")[0] or "remote_file"
+        # 清理文件名，去掉非法字符
+        filename = re.sub(r'[^\w\.\-]+', '_', filename)
 
         return {
             "file_name": filename,
             "binary": resp.content,
-            "source_path": url,
+            "source_path": url,  # 用 URL 作为 source_path
             "source_type": "uri"
         }
 

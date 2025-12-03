@@ -17,7 +17,6 @@ class TikaProcessor(BaseProcessor):
 
     def process(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         binary = data.get("binary")
-        # 假设 IdProcessor 已经运行，并把 doc_id 注入到 data 中
         stable_doc_id = data.get("doc_id")
         file_name = data.get("file_name", "unknown_file")
         file_ext = os.path.splitext(file_name)[1].lstrip('.').lower() or "unknown"
@@ -28,12 +27,27 @@ class TikaProcessor(BaseProcessor):
         # NEW: 提取用户指定的 ingestion_method
         # 优先级：user_metadata > data.ingestion_method > data.type (Source 提供的) > 默认值
         ingestion_method = (
-                user_metadata.get("ingestion_method")
-                or data.get("ingestion_method")
-                or data.get("source_type")  # <-- 修复点：检查 Source 提供的 'type' 字段
-                or "file_upload"  # 默认值
+            user_metadata.get("ingestion_method")
+            or data.get("ingestion_method")
+            or data.get("source_type")  # <-- 修复点：检查 Source 提供的 'type' 字段
+            or "file_upload"  # 默认值
         )
 
+        # ============================ 特殊处理 Web 文本 ============================
+        if data.get("source_type") == "web" and "raw_text" in data and data["raw_text"]:
+            logger.info(f"TikaProcessor: using pre-fetched raw_text for web source {file_name}")
+            raw_text = data["raw_text"]
+            merged_metadata = {
+                "doc_id": stable_doc_id,
+                "ingestion_method": ingestion_method,
+                **user_metadata
+            }
+            merged_metadata["source_name"] = file_name
+            merged_metadata["source_type"] = file_ext
+            merged_metadata["raw_text_length"] = len(raw_text)
+            return {"raw_text": raw_text, "metadata": merged_metadata}
+
+        # ============================ 无 binary 情况 ============================
         if not binary:
             logger.warning("TikaProcessor: no binary data. Returning raw_text and merging user_metadata.")
             # 修复点: 即使没有 binary，也必须确保返回的 metadata 中包含完整的 user_metadata
@@ -125,6 +139,7 @@ class TikaProcessor(BaseProcessor):
             ingestion_method: str,  # NEW: 接收上传方式
     ) -> Dict[str, Any]:
 
+        # Helper: 优先获取存在的 key
         def get(*keys, default=""):
             for k in keys:
                 v = raw_meta.get(k)
@@ -152,7 +167,6 @@ class TikaProcessor(BaseProcessor):
         m["source_name"] = file_name
         m["source_type"] = file_ext
         m["source_size"] = len(binary)
-        # 保持哈希计算
         m["content_md5"] = hashlib.md5(binary).hexdigest()
         m["content_sha256"] = hashlib.sha256(binary).hexdigest()
         m["ingest_at"] = datetime.now(timezone.utc).isoformat(sep="T", timespec="milliseconds")
@@ -164,9 +178,12 @@ class TikaProcessor(BaseProcessor):
         m["modified_at"] = parse_date(get("dcterms:modified", "Last-Modified", "meta:save-date"))
         m["language"] = get("language", "dc:language", "Content-Language") or "zh-CN"
 
-        # 页数
+        # 页数安全处理
         pages = get("xmpTPg:NPages", "pdf:NPages", "Page-Count", "NumberOfPages")
-        m["page_count"] = int(pages) if pages and str(pages).isdigit() else None
+        try:
+            m["page_count"] = int(pages) if pages and str(pages).isdigit() else 0
+        except:
+            m["page_count"] = 0
 
         # 业务字段
         kw = get("keywords", "meta:keyword", "binary:Keywords") or ""
@@ -175,29 +192,44 @@ class TikaProcessor(BaseProcessor):
         m["category"] = get("Category") or ""  # 密级常在这里
         m["producer"] = raw_meta.get("pdf:Producer", "") or ""
 
-        # 关键状态（后面清洗/OCR 必须依赖）
+        # 关键状态
         m["is_encrypted"] = raw_meta.get("pdf:encrypted") == "true"
-        m["is_scanned_pdf"] = self._detect_scanned_pdf(raw_text, m)
+
+        # ==================== 检测扫描 PDF ====================
+        if file_ext in ["pdf"]:
+            m["is_scanned_pdf"] = self._detect_scanned_pdf(raw_text, m)
+        else:
+            m["is_scanned_pdf"] = False  # 非 PDF 文件直接标记 False
+
         m["raw_text_length"] = len(raw_text)
 
         # ==================== NEW: 合并用户自定义元数据 ====================
-        # 用户提供的元数据具有最高优先级，覆盖Tika解析的值
         m.update(user_metadata)
-        # 确保 ingestion_method 不会被 user_metadata 中已有的同名键覆盖 (除非用户明确想覆盖)
         if "ingestion_method" not in m:
             m["ingestion_method"] = ingestion_method
         logger.debug(f"Merged user metadata: {user_metadata.keys()}")
-        # ===================================================================
 
         return m
 
+    # ============================== 扫描 PDF 检测 ==============================
     @staticmethod
     def _detect_scanned_pdf(text: str, meta: dict) -> bool:
-        producer = meta.get("producer", "").lower()
-        scan_keywords = ["scan", "image", "mfp", "scanner", "canon", "fujitsu", "kodak", "hp", "ricoh", "epson",
-                         "pdfscan"]
+        producer = (meta.get("producer") or "").lower()
+        scan_keywords = [
+            "scan", "image", "mfp", "scanner", "canon", "fujitsu",
+            "kodak", "hp", "ricoh", "epson", "pdfscan"
+        ]
         if any(k in producer for k in scan_keywords):
             return True
-        if len(text.strip()) < 600 and meta.get("page_count", 0) > 3:
+
+        page_count = meta.get("page_count") or 0
+        if not isinstance(page_count, int):
+            try:
+                page_count = int(page_count)
+            except:
+                page_count = 0
+
+        if len(text.strip()) < 600 and page_count > 3:
             return True
+
         return False
