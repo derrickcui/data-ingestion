@@ -97,7 +97,7 @@ class IdProcessor(BaseProcessor):
 
         # 2. 获取优先 ID (Preferred ID)
         user_metadata = data.get("user_metadata", {})
-        logger.info(f">>>>user_metadata={user_metadata}")
+
         preferred_id = (
                 user_metadata.get("doc_id")  # 1. API 传入的 user_metadata 中的 doc_id
                 or data.get("doc_id")  # 2. 上游 Source 可能设置的 doc_id
@@ -108,7 +108,7 @@ class IdProcessor(BaseProcessor):
 
         # 3. 生成 ID
         api_source_system = user_metadata.get("source_system")
-        logger.info(f"api_source_system:{api_source_system}")
+
         stable_doc_id = generate_stable_doc_id(
             content_for_hash=content_for_hash,
             file_name=file_name,
