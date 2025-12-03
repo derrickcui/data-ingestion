@@ -87,7 +87,15 @@ class IdProcessor(BaseProcessor):
         # - file/base64 Source 传入 binary (bytes)
         # - text Source 传入 raw_text (str)
         # - uri Source 传入 uri (str)
-        content_for_hash = data.get("binary") or data.get("raw_text") or data.get("uri")
+        # - HTTP/HTTPS：始终用 URL 创建 doc_id（保持稳定）
+        source_path = data.get("source_path")
+        if isinstance(source_path, str) and source_path.startswith(("http://", "https://")):
+            content_for_hash = source_path
+        else:
+            # 本地文件: 用文件内容保持版本控制
+            content_for_hash = data.get("binary") or data.get("raw_text") or data.get("uri")
+
+
         file_name = data.get("file_name", "unknown_source")
 
         if not content_for_hash:

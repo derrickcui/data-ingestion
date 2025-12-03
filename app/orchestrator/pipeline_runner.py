@@ -26,7 +26,6 @@ class PipelineRunner:
         处理单个文件（dict），按 processors 顺序处理，并写入 sinks
         """
         context = context or {}
-
         # 顺序处理 processors
         for processor in self.processors:
             try:

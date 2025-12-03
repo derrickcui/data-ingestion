@@ -99,7 +99,8 @@ class URISource(BaseSource):
         return results
 
     def _load_local_file(self, path: str) -> Dict[str, Any]:
-        file_name = os.path.basename(path)
+        full_path = os.path.abspath(path)
+        file_name = os.path.basename(full_path)
         logger.info(f"[URISource] Loading local file: {file_name}")
         with open(path, "rb") as f:
             binary = f.read()
@@ -107,6 +108,7 @@ class URISource(BaseSource):
         return {
             "file_name": file_name,
             "binary": binary,
+            "source_path": full_path,
             "source_type": "uri"
         }
 
@@ -122,6 +124,7 @@ class URISource(BaseSource):
         return {
             "file_name": filename,
             "binary": resp.content,
+            "source_path": url,
             "source_type": "uri"
         }
 

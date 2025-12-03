@@ -1,6 +1,6 @@
 # app/processors/assemble.py
 import json
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import uuid
 from datetime import datetime, timezone
 from app.pipelines.base import BaseProcessor
@@ -32,9 +32,9 @@ class AssembleProcessor(BaseProcessor):
             "content": clean_text,
             "title": metadata.get("title", ""),
             "author": metadata.get("author", ""),
-            "source_name": metadata.get("source_name", context.get("file_name", "")),
+            "source_name": metadata.get("source_name", data.get("file_name", "")),
             "source_type": metadata.get("source_type", ""),
-            "source_path": context.get("source_path", ""),
+            "source_path": data.get("source_path", ""),
 
             "source": metadata.get("source", ""),
             "created_at": metadata.get("created_at", ""),
