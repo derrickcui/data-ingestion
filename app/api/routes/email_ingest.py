@@ -61,7 +61,7 @@ def _initialize_clients(provider: Optional[str]):
 # 构建 Pipeline Runner
 # ---------------------------
 def _make_runner(email_source: EmailSource, embedding_client=None, llm_client=None):
-    sinks = [SolrSink()]
+    sinks = [SolrSink(Config.SOLR_URL, Config.SOLR_COLLECTION)]
     processor_classes = load_all_processor_classes()
     processors = []
     for cls in processor_classes:

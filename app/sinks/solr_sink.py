@@ -7,9 +7,10 @@ from app.utility.config import Config  # 假设你已有统一 config
 from app.utility.log import logger
 
 class SolrSink(BaseSink):
-    def __init__(self, solr_url: Optional[str] = None):
+    def __init__(self, solr_url: Optional[str] = None, collection: Optional[str] = None):
         self.solr_url = solr_url or Config.SOLR_URL
-        self.update_url = f"{self.solr_url}/solr/shediao/update"
+        self.collection = collection or Config.SOLR_COLLECTION
+        self.update_url = f"{self.solr_url}/solr/{self.collection}/update"
 
     def write(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> None:
         docs = data["solr_docs"]          # 1 document + N chunks

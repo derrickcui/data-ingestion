@@ -47,7 +47,7 @@ def _make_runner(
         logger.info(f"Attached metadata to file source: {metadata}")
 
     # 3. 初始化 Sink
-    sinks = [SolrSink()]
+    sinks = [SolrSink(Config.SOLR_URL, Config.SOLR_COLLECTION)]
 
     # 4. 初始化 Processors
     processor_classes = load_all_processor_classes()

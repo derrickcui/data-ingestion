@@ -127,7 +127,7 @@ def _make_runner(
 
 
     # 3. Sink
-    sinks = [SolrSink()]
+    sinks = [SolrSink(Config.SOLR_URL, Config.SOLR_COLLECTION)]
 
     # 4. Processors
     processor_classes = load_all_processor_classes()
