@@ -34,6 +34,7 @@ class EmailIngestRequest(BaseModel):
     provider: Optional[str] = Field(None, description="embedding/LLM provider，如 ali/openai/google")
     source_system: Optional[str] = Field(None, description="来源系统标识，用于 Doc ID 生成")
     metadata: Optional[Dict[str, Any]] = Field(None, description="用户自定义元数据")
+    reset_state: Optional[bool] = Field(False, description="是否全量抓取")
 
 
 # ---------------------------
@@ -110,7 +111,7 @@ async def ingest_email(req: EmailIngestRequest):
         raise e
 
     SourceClass = EmailSourceFull if getattr(req, "reset_state", False) else EmailSource
-
+    logger.info(f"source class:{SourceClass}")
     # 初始化 EmailSource
     email_source = SourceClass(
         host=req.host,
