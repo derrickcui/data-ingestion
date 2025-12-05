@@ -14,6 +14,7 @@ from app.ai_providers.google_client import GoogleEmbeddingClient
 from app.ai_providers.aliyun_llm_client import AliyunLLMClient
 from app.ai_providers.openai_llm_client import OpenAILLMClient
 from app.ai_providers.google_llm_client import GoogleLLMClient
+from app.sources.email_source_full import EmailSourceFull
 from app.utility.config import Config
 from app.utility.log import logger
 
@@ -81,7 +82,7 @@ def _make_runner(email_source: EmailSource, embedding_client=None, llm_client=No
   "host": "imap.exmail.qq.com",
   "port": 993,
   "username": "derrick.cui@geelink.cn",
-  "password": "!Aydc3588",
+  "password": ,
   "mailbox": "INBOX",
   "max_emails": 50,
   "provider": "ali",
@@ -108,8 +109,10 @@ async def ingest_email(req: EmailIngestRequest):
     except HTTPException as e:
         raise e
 
+    SourceClass = EmailSourceFull if getattr(req, "reset_state", False) else EmailSource
+
     # 初始化 EmailSource
-    email_source = EmailSource(
+    email_source = SourceClass(
         host=req.host,
         port=req.port,
         username=req.username,
@@ -128,3 +131,5 @@ async def ingest_email(req: EmailIngestRequest):
     except Exception as e:
         logger.error(f"Email ingest failed: {e}")
         raise HTTPException(500, f"Email ingest failed: {e}")
+
+
