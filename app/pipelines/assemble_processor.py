@@ -20,13 +20,13 @@ class AssembleProcessor(BaseProcessor):
         chunks = data.get("chunks", [])
         embeddings = data.get("embeddings", [])
         metadata = data.get("metadata", {}) or {}
-        parent_id = metadata.get("doc_id") or str(uuid.uuid4())
+        doc_id = metadata.get("doc_id") or str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat(sep="T", timespec="milliseconds")
 
         # ============ 1. 主文档（仅用于 Solr 等混合检索库） ============
         main_doc = {
-            "id": generate_professional_uuid_id(parent_id),
-            "doc_id": parent_id,
+            "id": generate_professional_uuid_id(doc_id),
+            "doc_id": doc_id,
             "doc_type": "document",
             "raw_content": raw_text,
             "content": clean_text,
@@ -51,10 +51,10 @@ class AssembleProcessor(BaseProcessor):
         # ============ 2. Chunk 文档（Solr + 所有向量库都需要） ============
         chunk_docs = [
             {
-                "id": generate_professional_uuid_id(f"{parent_id}_chunk_{idx:06d}"),
-                "doc_id": f"{parent_id}_chunk_{idx:06d}",
+                "id": generate_professional_uuid_id(f"{doc_id}_chunk_{idx:06d}"),
+                "doc_id": f"{doc_id}_chunk_{idx:06d}",
                 "doc_type": "chunk",
-                "parent_id": parent_id,
+                "parent_id": main_doc["id"],
                 "chunk_index": idx,
                 "chunk_content": chunk_text,
                 "_gl_vector": embedding.get('embedding',[]),  # Solr 用的向量字段
@@ -82,5 +82,5 @@ class AssembleProcessor(BaseProcessor):
         return {
             "solr_docs": [main_doc, *chunk_docs],    # Solr 直接吃这个
             "vector_docs": chunk_docs,               # 所有向量库只吃这个
-            "parent_id": parent_id,                  # 方便日志追踪
+            "doc_id": doc_id,                        # 方便日志追踪
         }

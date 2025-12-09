@@ -56,18 +56,52 @@ class IngestStructuredRequest(BaseModel):
     # -------------------------------
     # Pydantic V2 style validator
     # -------------------------------
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     def validate_source_type_fields(cls, values):
-        stype = values.get("source_type")
-        if stype == "text" and not values.get("text"):
-            raise ValueError("text is required when source_type is 'text'")
-        if stype == "uri" and not values.get("uri"):
-            raise ValueError("uri is required when source_type is 'uri'")
-        if stype == "base64" and not values.get("base64_content"):
-            raise ValueError("base64_content is required when source_type is 'base64'")
-        if stype == "web" and not values.get("uri"):
-            raise ValueError("uri (start_url) is required when source_type is 'web'")
-        return values
+
+        # ===== 批量输入处理 =====
+        if isinstance(values, list):
+            for i, item in enumerate(values):
+                if not isinstance(item, dict):
+                    raise ValueError(f"Item #{i} must be an object")
+
+                stype = item.get("source_type")
+
+                if stype == "text" and not item.get("text"):
+                    raise ValueError(f"Item #{i}: text is required when source_type='text'")
+
+                if stype == "uri" and not item.get("uri"):
+                    raise ValueError(f"Item #{i}: uri is required when source_type='uri'")
+
+                if stype == "base64" and not item.get("base64_content"):
+                    raise ValueError(f"Item #{i}: base64_content is required when source_type='base64'")
+
+                if stype == "web" and not item.get("uri"):
+                    raise ValueError(f"Item #{i}: uri (start_url) is required when source_type='web'")
+
+            return values
+
+        # ===== 单对象校验 =====
+        if isinstance(values, dict):
+
+            stype = values.get("source_type")
+
+            if stype == "text" and not values.get("text"):
+                raise ValueError("text is required when source_type='text'")
+
+            if stype == "uri" and not values.get("uri"):
+                raise ValueError("uri is required when source_type='uri'")
+
+            if stype == "base64" and not values.get("base64_content"):
+                raise ValueError("base64_content is required when source_type='base64'")
+
+            if stype == "web" and not values.get("uri"):
+                raise ValueError("uri (start_url) is required when source_type='web'")
+
+            return values
+
+        # ===== 兜底：非法格式 =====
+        raise ValueError("Invalid request body")
 
 
 # -------------------------------------------------
