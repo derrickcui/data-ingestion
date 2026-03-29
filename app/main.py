@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 # 假设这些模块导入路径正确，并且 Config 包含所有配置
+from app.db.init_db import init_database
 from app.utility.log import logger
 from app.utility.config import Config
 from app.api.router import router
@@ -32,6 +33,7 @@ async def lifespan(app: FastAPI):
     logger.info("========================================")
 
     # 可以在这里初始化数据库连接池、Celery Worker 状态等。
+    init_database()
 
     yield  # <-- 应用运行阶段
 

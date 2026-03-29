@@ -2,9 +2,6 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Form
 from typing import Optional
 import json  # 导入 json 库用于解析元数据
 
-from app.ai_providers.aliyun_llm_client import AliyunLLMClient
-from app.ai_providers.google_llm_client import GoogleLLMClient
-from app.ai_providers.openai_llm_client import OpenAILLMClient
 from app.utility.config import Config
 from app.worker.tasks import ingest_file_task
 from app.orchestrator.pipeline_runner import PipelineRunner
@@ -33,8 +30,7 @@ def _make_runner(
         filename: str,
         content: bytes,
         metadata: Optional[dict] = None,  # <-- 新增：接收解析后的元数据字典
-        embedding_client: Optional[object] = None,
-        llm_client: Optional[object] = None
+        embedding_client: Optional[object] = None
 ):
     # 1. 初始化 Source
     source = FileSource(filename, content)
@@ -55,8 +51,8 @@ def _make_runner(
     for cls in processor_classes:
         if cls.__name__ == "EmbedProcessor" and embedding_client is not None:
             processors.append(cls(client=embedding_client))
-        elif cls.__name__ == "LLMProcessor" and llm_client is not None:
-            processors.append(cls(client=llm_client))
+        elif cls.__name__ == "LLMProcessor":
+            continue
         else:
             processors.append(cls())
 
@@ -80,7 +76,7 @@ async def upload_sync(
         ),
         provider: Optional[str] = Query(
             None,
-            description="embedding/LLM provider，如 'ali', 'openai', 'google'",
+            description="embedding provider，如 'ali', 'openai', 'google'",
             example="ali"
         )
 ):
@@ -97,26 +93,22 @@ async def upload_sync(
             logger.error(f"Invalid metadata JSON: {metadata}. Error: {e}")
             raise HTTPException(status_code=400, detail=f"Metadata must be valid JSON: {e}")
 
-    # 根据 provider 初始化 embedding & LLM client
+    # 根据 provider 初始化 embedding client
     embedding_client = None
-    llm_client = None
 
     if provider:
         provider = provider.lower()
         if provider == "openai":
             embedding_client = OpenAIEmbeddingClient(Config.OPENAI_API_KEY)
-            llm_client = OpenAILLMClient(Config.OPENAI_API_KEY)
         elif provider == "ali":
             embedding_client = AliEmbeddingClient(Config.ALI_QWEN_API_KEY)
-            llm_client = AliyunLLMClient(Config.ALI_QWEN_API_KEY)
         elif provider == "google":
             embedding_client = GoogleEmbeddingClient(Config.GOOGLE_API_KEY)
-            llm_client = GoogleLLMClient(Config.GOOGLE_API_KEY)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     # 传递解析后的元数据给 runner
-    runner = _make_runner(file.filename, content, parsed_metadata, embedding_client, llm_client)
+    runner = _make_runner(file.filename, content, parsed_metadata, embedding_client)
 
     try:
         # ✨ 用 threadpool 执行 runner.run（解决阻塞，实现高并发）

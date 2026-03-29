@@ -1,10 +1,18 @@
 from typing import Optional
-from pydantic_settings import BaseSettings
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """
     Application configuration.
     """
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
     APP_NAME: Optional[str] = None
     VERSION: Optional[str] = None
     DEBUG: Optional[bool] = None
@@ -68,9 +76,24 @@ class Settings(BaseSettings):
     REDIS_BACKEND_URL: Optional[str] = None  # 示例：redis://localhost:6379/1
 
     TIKA_URL: Optional[str] = "http://localhost:9998"
+    DATABASE_URL: Optional[str] = None
+    DATABASE_ECHO: Optional[bool] = False
+    DATABASE_AUTO_CREATE: Optional[bool] = True
+    PG_HOST: Optional[str] = None
+    PG_PORT: Optional[int] = 5432
+    PG_DB: Optional[str] = None
+    PG_USER: Optional[str] = None
+    PG_PASSWORD: Optional[str] = None
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def normalize_debug(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on", "debug"}:
+                return True
+            if normalized in {"0", "false", "no", "off", "release", "prod", "production"}:
+                return False
+        return value
 
 Config = Settings()

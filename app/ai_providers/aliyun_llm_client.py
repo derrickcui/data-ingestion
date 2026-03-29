@@ -77,3 +77,27 @@ class AliyunLLMClient:
         except Exception as e:
             logger.error(f"Aliyun LLM failed: {e}")
             raise RuntimeError(f"Aliyun LLM request error: {e}")
+
+    def complete(self, prompt: str) -> str:
+        try:
+            response = Generation.call(
+                model=self.model,
+                prompt=prompt,
+                api_key=self.api_key,
+                result_format="message"
+            )
+            output = response.get("output", {}) if hasattr(response, "get") else response["output"]
+            text = output.get("text") if isinstance(output, dict) else None
+            if text:
+                return text
+
+            choices = output.get("choices", []) if isinstance(output, dict) else []
+            if choices:
+                message = choices[0].get("message", {})
+                content = message.get("content")
+                if content:
+                    return content
+            return ""
+        except Exception as e:
+            logger.error(f"Aliyun LLM failed: {e}")
+            raise RuntimeError(f"Aliyun LLM request error: {e}")

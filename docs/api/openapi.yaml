@@ -1,0 +1,1436 @@
+openapi: 3.1.0
+info:
+  title: Geelink Data Ingestion System
+  version: 1.1.0
+paths:
+  /ingest/upload:
+    post:
+      tags:
+      - 资源上传导入
+      summary: 专用文件上传接口（File Ingestion）
+      description: '接收文件和可选元数据，进行同步摄取。
+
+        Content-Type 必须是 multipart/form-data。'
+      operationId: upload_ingest_upload_post
+      parameters:
+      - name: provider
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: embedding provider
+          title: Provider
+        description: embedding provider
+      - name: source_system
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 来源系统标识，用于 Doc ID 生成
+          title: Source System
+        description: 来源系统标识，用于 Doc ID 生成
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_ingest_upload_post'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ingest/ingest:
+    post:
+      tags:
+      - 资源上传导入
+      summary: 统一结构化数据摄取入口（支持单对象或数组）
+      description: '接收结构化 JSON Body：
+
+        - 单个对象
+
+        - 或对象数组
+
+        批量处理文本、URI/Base64/Web内容'
+      operationId: ingest_structured_ingest_ingest_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/IngestStructuredRequest'
+              - items:
+                  $ref: '#/components/schemas/IngestStructuredRequest'
+                type: array
+              title: Request
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /email/ingest_email:
+    post:
+      tags:
+      - email导入
+      summary: 从邮箱抓取邮件并入库
+      operationId: ingest_email_email_ingest_email_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailIngestRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/samples/generate:
+    post:
+      tags:
+      - AI Vocabulary
+      summary: Generate frozen base sample
+      operationId: generate_sample_ai_vocabulary_samples_generate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateSampleRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SampleVersionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/samples/versions:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: List sample versions
+      operationId: list_sample_versions_ai_vocabulary_samples_versions_get
+      parameters:
+      - name: dataset
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dataset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SampleVersionResponse'
+                title: Response List Sample Versions Ai Vocabulary Samples Versions
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/samples/versions/{sample_version_id}:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: Get sample version
+      operationId: get_sample_version_ai_vocabulary_samples_versions__sample_version_id__get
+      parameters:
+      - name: sample_version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Sample Version Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SampleVersionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/samples/versions/{sample_version_id}/items:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: List sample items
+      operationId: list_sample_items_ai_vocabulary_samples_versions__sample_version_id__items_get
+      parameters:
+      - name: sample_version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Sample Version Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SampleItemResponse'
+                title: Response List Sample Items Ai Vocabulary Samples Versions  Sample
+                  Version Id  Items Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs:
+    post:
+      tags:
+      - AI Vocabulary
+      summary: Create AI vocabulary extraction run
+      operationId: create_run_ai_vocabulary_runs_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - AI Vocabulary
+      summary: List AI vocabulary extraction runs
+      operationId: list_runs_ai_vocabulary_runs_get
+      parameters:
+      - name: dataset
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dataset
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RunResponse'
+                title: Response List Runs Ai Vocabulary Runs Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs/{run_id}:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: Get AI vocabulary extraction run
+      operationId: get_run_ai_vocabulary_runs__run_id__get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs/{run_id}/execute:
+    post:
+      tags:
+      - AI Vocabulary
+      summary: Execute AI vocabulary extraction run
+      operationId: execute_run_ai_vocabulary_runs__run_id__execute_post
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs/{run_id}/execute-async:
+    post:
+      tags:
+      - AI Vocabulary
+      summary: Queue AI vocabulary extraction run
+      operationId: execute_run_async_ai_vocabulary_runs__run_id__execute_async_post
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs/{run_id}/terms:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: List raw extracted terms
+      operationId: list_run_terms_ai_vocabulary_runs__run_id__terms_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RawTermResponse'
+                title: Response List Run Terms Ai Vocabulary Runs  Run Id  Terms Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/candidates:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: List AI vocabulary candidates
+      operationId: list_candidates_ai_vocabulary_candidates_get
+      parameters:
+      - name: dataset
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dataset
+      - name: ai_run_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ai Run Id
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TermCandidateResponse'
+                title: Response List Candidates Ai Vocabulary Candidates Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/candidates/{candidate_id}:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: Get candidate vocabulary detail
+      operationId: get_candidate_ai_vocabulary_candidates__candidate_id__get
+      parameters:
+      - name: candidate_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Candidate Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermCandidateResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/candidates/{candidate_id}/evidence:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: List candidate evidence rows
+      operationId: list_candidate_evidence_ai_vocabulary_candidates__candidate_id__evidence_get
+      parameters:
+      - name: candidate_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Candidate Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TermCandidateEvidenceResponse'
+                title: Response List Candidate Evidence Ai Vocabulary Candidates  Candidate
+                  Id  Evidence Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/candidates/{candidate_id}/review:
+    post:
+      tags:
+      - AI Vocabulary
+      summary: Review candidate vocabulary term
+      operationId: review_candidate_ai_vocabulary_candidates__candidate_id__review_post
+      parameters:
+      - name: candidate_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Candidate Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCandidateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermCandidateResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/prompts:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: List prompt versions
+      operationId: list_prompt_versions_ai_vocabulary_prompts_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/PromptVersionResponse'
+                type: array
+                title: Response List Prompt Versions Ai Vocabulary Prompts Get
+    post:
+      tags:
+      - AI Vocabulary
+      summary: Create prompt version
+      operationId: create_prompt_version_ai_vocabulary_prompts_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptVersionRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptVersionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/prompts/{prompt_version}:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: Get prompt version
+      operationId: get_prompt_version_ai_vocabulary_prompts__prompt_version__get
+      parameters:
+      - name: prompt_version
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Prompt Version
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptVersionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs/{run_id}/summary:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: Get run analytics summary
+      operationId: get_run_summary_ai_vocabulary_runs__run_id__summary_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunSummaryResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /:
+    get:
+      summary: Hello World
+      operationId: hello_world__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+components:
+  schemas:
+    Body_upload_ingest_upload_post:
+      properties:
+        file:
+          type: string
+          format: binary
+          title: File
+          description: 要上传的文档文件
+        metadata:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Metadata
+          description: 可选 JSON 格式元数据字符串
+      type: object
+      required:
+      - file
+      title: Body_upload_ingest_upload_post
+    CreatePromptVersionRequest:
+      properties:
+        prompt_version:
+          type: string
+          title: Prompt Version
+          description: Unique prompt version, e.g. vocab_extract_v1
+        name:
+          type: string
+          title: Name
+          default: Vocabulary Extract Prompt
+        description:
+          type: string
+          title: Description
+          default: ''
+        system_prompt:
+          type: string
+          title: System Prompt
+          description: System prompt content
+        user_prompt_template:
+          type: string
+          title: User Prompt Template
+          description: User prompt template. Use {sample_content} placeholder for
+            sample text.
+        is_active:
+          type: boolean
+          title: Is Active
+          default: true
+      type: object
+      required:
+      - prompt_version
+      - system_prompt
+      - user_prompt_template
+      title: CreatePromptVersionRequest
+    CreateRunRequest:
+      properties:
+        dataset:
+          type: string
+          title: Dataset
+        sample_version_id:
+          type: string
+          title: Sample Version Id
+        prompt_version:
+          type: string
+          title: Prompt Version
+          default: vocab_extract_v1
+        provider:
+          type: string
+          title: Provider
+          default: openai
+        model_name:
+          type: string
+          title: Model Name
+          default: ''
+        temperature:
+          type: number
+          maximum: 2.0
+          minimum: 0.0
+          title: Temperature
+          default: 0.1
+        batch_size:
+          type: integer
+          maximum: 50.0
+          minimum: 1.0
+          title: Batch Size
+          default: 10
+      type: object
+      required:
+      - dataset
+      - sample_version_id
+      title: CreateRunRequest
+    EmailIngestRequest:
+      properties:
+        host:
+          type: string
+          title: Host
+          description: IMAP 服务器地址
+        port:
+          type: integer
+          title: Port
+          description: IMAP 端口
+          default: 993
+        username:
+          type: string
+          title: Username
+          description: 邮箱账号
+        password:
+          type: string
+          title: Password
+          description: 邮箱密码
+        mailbox:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mailbox
+          description: 邮箱文件夹
+          default: INBOX
+        max_emails:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Emails
+          description: 最大拉取邮件数量
+          default: 50
+        provider:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Provider
+          description: embedding provider，如 ali/openai/google
+        source_system:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source System
+          description: 来源系统标识，用于 Doc ID 生成
+        metadata:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Metadata
+          description: 用户自定义元数据
+        reset_state:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Reset State
+          description: 是否全量抓取
+          default: false
+      type: object
+      required:
+      - host
+      - username
+      - password
+      title: EmailIngestRequest
+    GenerateSampleRequest:
+      properties:
+        dataset:
+          type: string
+          title: Dataset
+          description: Dataset identifier
+        version_name:
+          type: string
+          title: Version Name
+          description: Frozen sample version name, e.g. v1
+        sample_type:
+          type: string
+          title: Sample Type
+          description: BASE | TOPIC | BLIND
+          default: BASE
+        candidate_pool_size:
+          type: integer
+          maximum: 20000.0
+          minimum: 100.0
+          title: Candidate Pool Size
+          default: 2000
+        sample_size:
+          type: integer
+          maximum: 1000.0
+          minimum: 10.0
+          title: Sample Size
+          default: 150
+        similarity_threshold:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Similarity Threshold
+          default: 0.85
+        max_chunks_per_doc:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Max Chunks Per Doc
+          default: 2
+      type: object
+      required:
+      - dataset
+      - version_name
+      title: GenerateSampleRequest
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    IngestStructuredRequest:
+      properties:
+        source_type:
+          type: string
+          title: Source Type
+          description: text | uri | base64
+        text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Text
+          description: 当 source_type=text 时传入纯文本
+        uri:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Uri
+          description: 当 source_type=uri 时传入远程资源的URL
+        base64_content:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Base64 Content
+          description: 当 source_type=base64 时传入Base64编码的字节流
+        metadata:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Metadata
+          description: 可选的业务元数据对象
+        provider:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Provider
+          description: embedding provider，如 ali, openai, google
+        source_system:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source System
+          description: 来源系统标识，用于 Doc ID 生成
+      type: object
+      required:
+      - source_type
+      title: IngestStructuredRequest
+      description: 用于接收结构化文本、URI或Base64数据的JSON请求体
+    PromptVersionResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        prompt_version:
+          type: string
+          title: Prompt Version
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+        system_prompt:
+          type: string
+          title: System Prompt
+        user_prompt_template:
+          type: string
+          title: User Prompt Template
+        is_active:
+          type: boolean
+          title: Is Active
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - prompt_version
+      - name
+      - description
+      - system_prompt
+      - user_prompt_template
+      - is_active
+      - created_at
+      - updated_at
+      title: PromptVersionResponse
+    RawTermResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        ai_run_id:
+          type: string
+          title: Ai Run Id
+        sample_item_id:
+          type: string
+          title: Sample Item Id
+        dataset:
+          type: string
+          title: Dataset
+        doc_id:
+          type: string
+          title: Doc Id
+        chunk_id:
+          type: string
+          title: Chunk Id
+        term:
+          type: string
+          title: Term
+        normalized_term:
+          type: string
+          title: Normalized Term
+        evidence:
+          type: string
+          title: Evidence
+        evidence_start:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Evidence Start
+        evidence_end:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Evidence End
+        confidence:
+          type: number
+          title: Confidence
+        validation_status:
+          type: string
+          title: Validation Status
+        raw_model_output:
+          type: string
+          title: Raw Model Output
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - ai_run_id
+      - sample_item_id
+      - dataset
+      - doc_id
+      - chunk_id
+      - term
+      - normalized_term
+      - evidence
+      - confidence
+      - validation_status
+      - raw_model_output
+      - created_at
+      title: RawTermResponse
+    ReviewCandidateRequest:
+      properties:
+        status:
+          type: string
+          title: Status
+          description: APPROVED | REJECTED | CANDIDATE
+      type: object
+      required:
+      - status
+      title: ReviewCandidateRequest
+    RunResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        dataset:
+          type: string
+          title: Dataset
+        sample_version_id:
+          type: string
+          title: Sample Version Id
+        run_key:
+          type: string
+          title: Run Key
+        prompt_version:
+          type: string
+          title: Prompt Version
+        provider:
+          type: string
+          title: Provider
+        model_name:
+          type: string
+          title: Model Name
+        status:
+          type: string
+          title: Status
+        temperature:
+          type: number
+          title: Temperature
+        batch_size:
+          type: integer
+          title: Batch Size
+        total_samples:
+          type: integer
+          title: Total Samples
+        processed_samples:
+          type: integer
+          title: Processed Samples
+        total_terms:
+          type: integer
+          title: Total Terms
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        last_heartbeat_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Heartbeat At
+        last_progress_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Progress Message
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finished At
+      type: object
+      required:
+      - id
+      - dataset
+      - sample_version_id
+      - run_key
+      - prompt_version
+      - provider
+      - model_name
+      - status
+      - temperature
+      - batch_size
+      - total_samples
+      - processed_samples
+      - total_terms
+      - created_at
+      title: RunResponse
+    RunSummaryResponse:
+      properties:
+        run_id:
+          type: string
+          title: Run Id
+        run_key:
+          type: string
+          title: Run Key
+        dataset:
+          type: string
+          title: Dataset
+        sample_version_id:
+          type: string
+          title: Sample Version Id
+        status:
+          type: string
+          title: Status
+        total_samples:
+          type: integer
+          title: Total Samples
+        processed_samples:
+          type: integer
+          title: Processed Samples
+        total_terms:
+          type: integer
+          title: Total Terms
+        last_heartbeat_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Heartbeat At
+        last_progress_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Progress Message
+        raw_term_count:
+          type: integer
+          title: Raw Term Count
+        valid_term_count:
+          type: integer
+          title: Valid Term Count
+        invalid_term_count:
+          type: integer
+          title: Invalid Term Count
+        candidate_count:
+          type: integer
+          title: Candidate Count
+      type: object
+      required:
+      - run_id
+      - run_key
+      - dataset
+      - sample_version_id
+      - status
+      - total_samples
+      - processed_samples
+      - total_terms
+      - raw_term_count
+      - valid_term_count
+      - invalid_term_count
+      - candidate_count
+      title: RunSummaryResponse
+    SampleItemResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        sample_version_id:
+          type: string
+          title: Sample Version Id
+        dataset:
+          type: string
+          title: Dataset
+        doc_id:
+          type: string
+          title: Doc Id
+        chunk_id:
+          type: string
+          title: Chunk Id
+        title:
+          type: string
+          title: Title
+        anchor_content:
+          type: string
+          title: Anchor Content
+        sample_content:
+          type: string
+          title: Sample Content
+        chunk_index:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Chunk Index
+        source_name:
+          type: string
+          title: Source Name
+        quality_score:
+          type: number
+          title: Quality Score
+        diversity_score:
+          type: number
+          title: Diversity Score
+        selection_reason:
+          type: string
+          title: Selection Reason
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - sample_version_id
+      - dataset
+      - doc_id
+      - chunk_id
+      - title
+      - anchor_content
+      - sample_content
+      - source_name
+      - quality_score
+      - diversity_score
+      - selection_reason
+      - created_at
+      title: SampleItemResponse
+    SampleVersionResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        dataset:
+          type: string
+          title: Dataset
+        version_name:
+          type: string
+          title: Version Name
+        sample_type:
+          type: string
+          title: Sample Type
+        generation_strategy:
+          type: string
+          title: Generation Strategy
+        status:
+          type: string
+          title: Status
+        candidate_pool_size:
+          type: integer
+          title: Candidate Pool Size
+        final_sample_size:
+          type: integer
+          title: Final Sample Size
+        similarity_threshold:
+          type: number
+          title: Similarity Threshold
+        max_chunks_per_doc:
+          type: integer
+          title: Max Chunks Per Doc
+          default: 2
+        avg_similarity:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Avg Similarity
+        min_similarity:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min Similarity
+        cluster_count_estimate:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Cluster Count Estimate
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - dataset
+      - version_name
+      - sample_type
+      - generation_strategy
+      - status
+      - candidate_pool_size
+      - final_sample_size
+      - similarity_threshold
+      - created_at
+      title: SampleVersionResponse
+    TermCandidateEvidenceResponse:
+      properties:
+        raw_term_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Raw Term Id
+        doc_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Doc Id
+        chunk_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Chunk Id
+        term:
+          type: string
+          title: Term
+        evidence:
+          type: string
+          title: Evidence
+        confidence:
+          type: number
+          title: Confidence
+        validation_status:
+          type: string
+          title: Validation Status
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - term
+      - evidence
+      - confidence
+      - validation_status
+      - created_at
+      title: TermCandidateEvidenceResponse
+    TermCandidateResponse:
+      properties:
+        id:
+          type: integer
+          title: Id
+        dataset:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dataset
+        term:
+          type: string
+          title: Term
+        normalized_term:
+          type: string
+          title: Normalized Term
+        source:
+          type: string
+          title: Source
+        ai_run_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ai Run Id
+        sample_version_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sample Version Id
+        doc_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Doc Id
+        evidence:
+          type: string
+          title: Evidence
+        confidence:
+          type: number
+          title: Confidence
+        evidence_count:
+          type: integer
+          title: Evidence Count
+          default: 0
+        document_count:
+          type: integer
+          title: Document Count
+          default: 0
+        status:
+          type: string
+          title: Status
+        reviewed:
+          type: boolean
+          title: Reviewed
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - term
+      - normalized_term
+      - source
+      - evidence
+      - confidence
+      - status
+      - reviewed
+      - created_at
+      - updated_at
+      title: TermCandidateResponse
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

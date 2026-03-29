@@ -6,9 +6,6 @@ import requests
 from pydantic import BaseModel, Field, model_validator
 
 # 导入所有内部依赖（假设这些类已定义且可用）
-from app.ai_providers.aliyun_llm_client import AliyunLLMClient
-from app.ai_providers.google_llm_client import GoogleLLMClient
-from app.ai_providers.openai_llm_client import OpenAILLMClient
 from app.sources.web_crawler_source import WebCrawlerSource
 from app.utility.config import Config
 from app.orchestrator.pipeline_runner import PipelineRunner
@@ -48,7 +45,7 @@ class IngestStructuredRequest(BaseModel):
 
     # 元数据和 Provider
     metadata: Optional[Dict[str, Any]] = Field(None, description="可选的业务元数据对象")
-    provider: Optional[str] = Field(None, description="embedding/LLM provider，如 ali, openai, google")
+    provider: Optional[str] = Field(None, description="embedding provider，如 ali, openai, google")
     source_system: Optional[str] = Field(None, description="来源系统标识，用于 Doc ID 生成") # <-- ADDED
 
     # 确保只传入一个内容字段
@@ -112,7 +109,6 @@ def _make_runner(
         content: Union[str, bytes],  # content 可以是 str (text/uri) 也可以是 bytes (file/base64)
         metadata: Optional[dict] = None,
         embedding_client: Optional[object] = None,
-        llm_client: Optional[object] = None,
         source_type: str = "file",
         source_system: Optional[str] = None # <-- ADDED
 ):
@@ -173,8 +169,8 @@ def _make_runner(
 
         if processor_name == "EmbedProcessor" and embedding_client:
             processors.append(cls(client=embedding_client))
-        elif processor_name == "LLMProcessor" and llm_client:
-            processors.append(cls(client=llm_client))
+        elif processor_name == "LLMProcessor":
+            continue
         else:
             processors.append(cls())
 
@@ -182,28 +178,24 @@ def _make_runner(
 
 
 # -------------------------------------------------
-#   助手函数：初始化 LLM 和 Embedding 客户端
+#   助手函数：初始化 Embedding 客户端
 # -------------------------------------------------
 def _initialize_clients(provider: Optional[str]):
-    """根据 provider 初始化 LLM 和 Embedding 客户端"""
+    """根据 provider 初始化 Embedding 客户端"""
     embedding_client = None
-    llm_client = None
 
     if provider:
         p = provider.lower()
         if p == "openai":
             embedding_client = OpenAIEmbeddingClient(Config.OPENAI_API_KEY)
-            llm_client = OpenAILLMClient(Config.OPENAI_API_KEY)
         elif p == "ali":
             embedding_client = AliEmbeddingClient(Config.ALI_QWEN_API_KEY)
-            llm_client = AliyunLLMClient(Config.ALI_QWEN_API_KEY)
         elif p == "google":
             embedding_client = GoogleEmbeddingClient(Config.GOOGLE_API_KEY)
-            llm_client = GoogleLLMClient(Config.GOOGLE_API_KEY)
         else:
             raise HTTPException(400, f"Unknown provider: {provider}")
 
-    return embedding_client, llm_client
+    return embedding_client
 
 
 # -------------------------------------------------
@@ -213,7 +205,7 @@ def _initialize_clients(provider: Optional[str]):
 async def upload(
         file: UploadFile = File(..., description="要上传的文档文件"),
         metadata: Optional[str] = Form(None, description='可选 JSON 格式元数据字符串'),
-        provider: Optional[str] = Query(None, description="embedding/LLM provider"),
+        provider: Optional[str] = Query(None, description="embedding provider"),
         source_system: Optional[str] = Query(None, description="来源系统标识，用于 Doc ID 生成") # <-- ADDED
 ):
     """
@@ -230,7 +222,7 @@ async def upload(
             raise HTTPException(400, detail=f"Metadata must be valid JSON: {e}")
 
     # 2. 初始化 Client
-    embedding_client, llm_client = _initialize_clients(provider)
+    embedding_client = _initialize_clients(provider)
 
     # 3. 提取内容
     filename = file.filename or "uploaded_file"
@@ -242,7 +234,6 @@ async def upload(
         content=content,
         metadata=parsed_metadata,
         embedding_client=embedding_client,
-        llm_client=llm_client,
         source_type="file",
         source_system=source_system # <-- PASSED
     )
@@ -284,7 +275,7 @@ async def ingest_structured(request: Union[IngestStructuredRequest, List[IngestS
 
         # 初始化客户端
         try:
-            embedding_client, llm_client = _initialize_clients(req.provider)
+            embedding_client = _initialize_clients(req.provider)
         except HTTPException as e:
             all_results.append({"status": "failed", "source_type": source_type, "error": str(e.detail)})
             continue
@@ -310,7 +301,6 @@ async def ingest_structured(request: Union[IngestStructuredRequest, List[IngestS
             content=content,
             metadata=req.metadata,
             embedding_client=embedding_client,
-            llm_client=llm_client,
             source_type=source_type,
             source_system=req.source_system
         )

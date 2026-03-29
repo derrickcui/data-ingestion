@@ -1,0 +1,107 @@
+<svg width="1600" height="1100" viewBox="0 0 1600 1100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="1100" fill="#F3F0E8"/>
+  <rect x="24" y="24" width="1552" height="1052" rx="28" fill="#FCFAF5"/>
+  <rect x="24" y="24" width="1552" height="84" rx="28" fill="#17322C"/>
+  <text x="64" y="77" fill="#F8F4EA" font-family="Georgia, serif" font-size="34" font-weight="700">AI Vocabulary Console</text>
+  <text x="1320" y="76" fill="#D8E6DF" font-family="Arial, sans-serif" font-size="18">Indexing Service / Phase 1</text>
+
+  <rect x="56" y="140" width="1488" height="88" rx="22" fill="#E8E1D2"/>
+  <text x="84" y="175" fill="#4E4334" font-family="Arial, sans-serif" font-size="15" font-weight="700">Dataset</text>
+  <rect x="84" y="185" width="260" height="28" rx="14" fill="#FCFAF5"/>
+  <text x="100" y="204" fill="#17322C" font-family="Arial, sans-serif" font-size="15">gl_demo</text>
+  <text x="384" y="175" fill="#4E4334" font-family="Arial, sans-serif" font-size="15" font-weight="700">Prompt</text>
+  <rect x="384" y="185" width="260" height="28" rx="14" fill="#FCFAF5"/>
+  <text x="400" y="204" fill="#17322C" font-family="Arial, sans-serif" font-size="15">vocab_extract_v1</text>
+  <text x="684" y="175" fill="#4E4334" font-family="Arial, sans-serif" font-size="15" font-weight="700">Model</text>
+  <rect x="684" y="185" width="220" height="28" rx="14" fill="#FCFAF5"/>
+  <text x="700" y="204" fill="#17322C" font-family="Arial, sans-serif" font-size="15">ali / qwen-plus</text>
+  <rect x="1028" y="167" width="146" height="34" rx="17" fill="#17322C"/>
+  <text x="1058" y="189" fill="#F8F4EA" font-family="Arial, sans-serif" font-size="15" font-weight="700">Generate Sample</text>
+  <rect x="1188" y="167" width="112" height="34" rx="17" fill="#A34E2E"/>
+  <text x="1216" y="189" fill="#FFF6EE" font-family="Arial, sans-serif" font-size="15" font-weight="700">Create Run</text>
+  <rect x="1314" y="167" width="112" height="34" rx="17" fill="#7B8B49"/>
+  <text x="1345" y="189" fill="#F6F9EA" font-family="Arial, sans-serif" font-size="15" font-weight="700">Execute</text>
+  <rect x="1440" y="167" width="76" height="34" rx="17" fill="#C9B89D"/>
+  <text x="1462" y="189" fill="#4E4334" font-family="Arial, sans-serif" font-size="15" font-weight="700">Refresh</text>
+
+  <rect x="56" y="256" width="348" height="136" rx="22" fill="#17322C"/>
+  <text x="84" y="302" fill="#C8D8D1" font-family="Arial, sans-serif" font-size="14" font-weight="700">Sample Versions</text>
+  <text x="84" y="355" fill="#F8F4EA" font-family="Georgia, serif" font-size="46" font-weight="700">12</text>
+  <text x="84" y="382" fill="#DDE7E2" font-family="Arial, sans-serif" font-size="16">Frozen sample sets available</text>
+
+  <rect x="420" y="256" width="348" height="136" rx="22" fill="#A34E2E"/>
+  <text x="448" y="302" fill="#FFDCC9" font-family="Arial, sans-serif" font-size="14" font-weight="700">Latest Sample Size</text>
+  <text x="448" y="355" fill="#FFF6EE" font-family="Georgia, serif" font-size="46" font-weight="700">150</text>
+  <text x="448" y="382" fill="#FFE7DA" font-family="Arial, sans-serif" font-size="16">Greedy diversity + context window</text>
+
+  <rect x="784" y="256" width="348" height="136" rx="22" fill="#7B8B49"/>
+  <text x="812" y="302" fill="#EAF2D1" font-family="Arial, sans-serif" font-size="14" font-weight="700">Runs</text>
+  <text x="812" y="355" fill="#F4F7EA" font-family="Georgia, serif" font-size="46" font-weight="700">8</text>
+  <text x="812" y="382" fill="#EAF2D1" font-family="Arial, sans-serif" font-size="16">Prompt-versioned extraction runs</text>
+
+  <rect x="1148" y="256" width="396" height="136" rx="22" fill="#DCCDB2"/>
+  <text x="1176" y="302" fill="#61513C" font-family="Arial, sans-serif" font-size="14" font-weight="700">AI Term Candidates</text>
+  <text x="1176" y="355" fill="#17322C" font-family="Georgia, serif" font-size="46" font-weight="700">273</text>
+  <text x="1176" y="382" fill="#6F614C" font-family="Arial, sans-serif" font-size="16">Persisted into term_candidate</text>
+
+  <rect x="56" y="424" width="720" height="612" rx="24" fill="#FFFFFF"/>
+  <text x="88" y="468" fill="#17322C" font-family="Georgia, serif" font-size="28" font-weight="700">Sample Versions</text>
+  <text x="88" y="496" fill="#72604A" font-family="Arial, sans-serif" font-size="15">Generated from Solr chunk candidates with quality filtering and cosine diversity threshold.</text>
+  <line x1="88" y1="530" x2="744" y2="530" stroke="#E7DECF"/>
+  <text x="88" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Version</text>
+  <text x="240" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Type</text>
+  <text x="330" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Size</text>
+  <text x="415" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Threshold</text>
+  <text x="545" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Created</text>
+  <text x="660" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Action</text>
+
+  <g font-family="Arial, sans-serif" font-size="15" fill="#17322C">
+    <rect x="84" y="582" width="664" height="72" rx="18" fill="#F7F2E8"/>
+    <text x="100" y="624">smoke_v1</text><text x="240" y="624">BASE</text><text x="330" y="624">150</text><text x="418" y="624">0.85</text><text x="545" y="624">2026-03-27</text>
+    <rect x="648" y="598" width="82" height="26" rx="13" fill="#17322C"/><text x="673" y="616" fill="#F8F4EA">View</text>
+
+    <rect x="84" y="670" width="664" height="72" rx="18" fill="#FBF8F2"/>
+    <text x="100" y="712">base_v2</text><text x="240" y="712">BASE</text><text x="330" y="712">200</text><text x="418" y="712">0.82</text><text x="545" y="712">2026-03-26</text>
+    <rect x="648" y="686" width="82" height="26" rx="13" fill="#C9B89D"/><text x="673" y="704" fill="#4F4437">View</text>
+
+    <rect x="84" y="758" width="664" height="72" rx="18" fill="#FBF8F2"/>
+    <text x="100" y="800">base_v1</text><text x="240" y="800">BASE</text><text x="330" y="800">120</text><text x="418" y="800">0.88</text><text x="545" y="800">2026-03-25</text>
+    <rect x="648" y="774" width="82" height="26" rx="13" fill="#C9B89D"/><text x="673" y="792" fill="#4F4437">View</text>
+  </g>
+
+  <rect x="800" y="424" width="744" height="612" rx="24" fill="#FFFFFF"/>
+  <text x="832" y="468" fill="#17322C" font-family="Georgia, serif" font-size="28" font-weight="700">Run Activity</text>
+  <text x="832" y="496" fill="#72604A" font-family="Arial, sans-serif" font-size="15">AI extraction runs with prompt version, model selection, processed samples, and candidate output volume.</text>
+  <line x1="832" y1="530" x2="1512" y2="530" stroke="#E7DECF"/>
+  <text x="832" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Run ID</text>
+  <text x="1070" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Prompt</text>
+  <text x="1192" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Status</text>
+  <text x="1282" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Terms</text>
+  <text x="1362" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Candidates</text>
+  <text x="1480" y="560" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Open</text>
+
+  <g font-family="Arial, sans-serif" font-size="15" fill="#17322C">
+    <rect x="828" y="582" width="688" height="88" rx="18" fill="#F7F2E8"/>
+    <text x="846" y="616">run_0ef28f44343f48c0818fd83b</text>
+    <text x="1070" y="616">vocab_extract_v1</text>
+    <rect x="1188" y="596" width="96" height="28" rx="14" fill="#DDE8C2"/><text x="1215" y="615" fill="#476021">COMPLETED</text>
+    <text x="1298" y="616">89</text><text x="1388" y="616">73</text>
+    <rect x="1450" y="596" width="48" height="28" rx="14" fill="#17322C"/><text x="1463" y="615" fill="#F8F4EA">View</text>
+    <text x="846" y="645" fill="#736450">gl_demo / ali:qwen-plus / batch size 2 / processed 10 of 10</text>
+
+    <rect x="828" y="686" width="688" height="88" rx="18" fill="#FBF8F2"/>
+    <text x="846" y="720">run_ddd6d907d9224b07b7260738</text>
+    <text x="1070" y="720">vocab_extract_v1</text>
+    <rect x="1188" y="700" width="96" height="28" rx="14" fill="#DDE8C2"/><text x="1215" y="719" fill="#476021">COMPLETED</text>
+    <text x="1298" y="720">87</text><text x="1388" y="720">71</text>
+    <rect x="1450" y="700" width="48" height="28" rx="14" fill="#C9B89D"/><text x="1463" y="719" fill="#4F4437">View</text>
+    <text x="846" y="749" fill="#736450">gl_demo / ali:qwen-plus / batch size 2 / evidence-backed extraction</text>
+  </g>
+
+  <rect x="828" y="816" width="688" height="188" rx="20" fill="#17322C"/>
+  <text x="856" y="856" fill="#E7F0EC" font-family="Georgia, serif" font-size="24" font-weight="700">Current System Boundary</text>
+  <text x="856" y="892" fill="#D7E5DF" font-family="Arial, sans-serif" font-size="16">Ingestion pipeline ends at Solr. AI Phase 1 starts from frozen sample versions and writes evidence-backed candidates into term_candidate.</text>
+  <text x="856" y="932" fill="#F8F4EA" font-family="Arial, sans-serif" font-size="16">Already wired:</text>
+  <text x="856" y="962" fill="#D7E5DF" font-family="Arial, sans-serif" font-size="15">• sample generation    • prompt versioning    • sync/async run execution</text>
+  <text x="856" y="988" fill="#D7E5DF" font-family="Arial, sans-serif" font-size="15">• raw term persistence • evidence validation  • term_candidate lifecycle entry</text>
+</svg>

@@ -24,3 +24,7 @@ class GoogleLLMClient:
             return '{"术语A": "定义A", "术语B": "定义B"}'
         else:
             return f"完成任务 {task} 的分析"
+
+    def complete(self, prompt: str) -> str:
+        logger.warning("GoogleLLMClient.complete is using placeholder output.")
+        return "[]"

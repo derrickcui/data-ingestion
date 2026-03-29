@@ -11,9 +11,6 @@ from app.pipelines.processor_registry import load_all_processor_classes
 from app.ai_providers.aliyun_client import AliEmbeddingClient
 from app.ai_providers.openai_client import OpenAIEmbeddingClient
 from app.ai_providers.google_client import GoogleEmbeddingClient
-from app.ai_providers.aliyun_llm_client import AliyunLLMClient
-from app.ai_providers.openai_llm_client import OpenAILLMClient
-from app.ai_providers.google_llm_client import GoogleLLMClient
 from app.sources.email_source_full import EmailSourceFull
 from app.utility.config import Config
 from app.utility.log import logger
@@ -31,7 +28,7 @@ class EmailIngestRequest(BaseModel):
     password: str = Field(..., description="邮箱密码")
     mailbox: Optional[str] = Field("INBOX", description="邮箱文件夹")
     max_emails: Optional[int] = Field(50, description="最大拉取邮件数量")
-    provider: Optional[str] = Field(None, description="embedding/LLM provider，如 ali/openai/google")
+    provider: Optional[str] = Field(None, description="embedding provider，如 ali/openai/google")
     source_system: Optional[str] = Field(None, description="来源系统标识，用于 Doc ID 生成")
     metadata: Optional[Dict[str, Any]] = Field(None, description="用户自定义元数据")
     reset_state: Optional[bool] = Field(False, description="是否全量抓取")
@@ -42,27 +39,23 @@ class EmailIngestRequest(BaseModel):
 # ---------------------------
 def _initialize_clients(provider: Optional[str]):
     embedding_client = None
-    llm_client = None
     if provider:
         p = provider.lower()
         if p == "openai":
             embedding_client = OpenAIEmbeddingClient(Config.OPENAI_API_KEY)
-            llm_client = OpenAILLMClient(Config.OPENAI_API_KEY)
         elif p == "ali":
             embedding_client = AliEmbeddingClient(Config.ALI_QWEN_API_KEY)
-            llm_client = AliyunLLMClient(Config.ALI_QWEN_API_KEY)
         elif p == "google":
             embedding_client = GoogleEmbeddingClient(Config.GOOGLE_API_KEY)
-            llm_client = GoogleLLMClient(Config.GOOGLE_API_KEY)
         else:
             raise HTTPException(400, f"Unknown provider: {provider}")
-    return embedding_client, llm_client
+    return embedding_client
 
 
 # ---------------------------
 # 构建 Pipeline Runner
 # ---------------------------
-def _make_runner(email_source: EmailSource, embedding_client=None, llm_client=None):
+def _make_runner(email_source: EmailSource, embedding_client=None):
     sinks = [SolrSink(Config.SOLR_URL, Config.SOLR_COLLECTION)]
     processor_classes = load_all_processor_classes()
     processors = []
@@ -70,8 +63,8 @@ def _make_runner(email_source: EmailSource, embedding_client=None, llm_client=No
         name = cls.__name__
         if name == "EmbedProcessor" and embedding_client:
             processors.append(cls(client=embedding_client))
-        elif name == "LLMProcessor" and llm_client:
-            processors.append(cls(client=llm_client))
+        elif name == "LLMProcessor":
+            continue
         else:
             processors.append(cls())
     return PipelineRunner(email_source, processors, sinks)
@@ -106,7 +99,7 @@ def _make_runner(email_source: EmailSource, embedding_client=None, llm_client=No
 @router.post("/ingest_email", summary="从邮箱抓取邮件并入库")
 async def ingest_email(req: EmailIngestRequest):
     try:
-        embedding_client, llm_client = _initialize_clients(req.provider)
+        embedding_client = _initialize_clients(req.provider)
     except HTTPException as e:
         raise e
 
@@ -124,7 +117,7 @@ async def ingest_email(req: EmailIngestRequest):
         source_type="email",
     )
 
-    runner = _make_runner(email_source, embedding_client, llm_client)
+    runner = _make_runner(email_source, embedding_client)
 
     try:
         result = await run_in_threadpool(runner.run)

@@ -1,0 +1,93 @@
+<svg width="1600" height="1100" viewBox="0 0 1600 1100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="1100" fill="#F1EFE7"/>
+  <rect x="24" y="24" width="1552" height="1052" rx="28" fill="#FBFAF6"/>
+  <rect x="24" y="24" width="1552" height="84" rx="28" fill="#17322C"/>
+  <text x="64" y="77" fill="#F8F4EA" font-family="Georgia, serif" font-size="34" font-weight="700">Run Detail</text>
+  <text x="1210" y="76" fill="#D8E6DF" font-family="Arial, sans-serif" font-size="18">run_0ef28f44343f48c0818fd83b</text>
+
+  <rect x="56" y="140" width="1488" height="152" rx="24" fill="#E8E1D2"/>
+  <text x="84" y="177" fill="#4E4334" font-family="Arial, sans-serif" font-size="14" font-weight="700">DATASET</text>
+  <text x="84" y="214" fill="#17322C" font-family="Georgia, serif" font-size="30" font-weight="700">gl_demo</text>
+  <text x="320" y="177" fill="#4E4334" font-family="Arial, sans-serif" font-size="14" font-weight="700">SAMPLE VERSION</text>
+  <text x="320" y="214" fill="#17322C" font-family="Georgia, serif" font-size="30" font-weight="700">smoke_v1</text>
+  <text x="620" y="177" fill="#4E4334" font-family="Arial, sans-serif" font-size="14" font-weight="700">PROMPT VERSION</text>
+  <text x="620" y="214" fill="#17322C" font-family="Georgia, serif" font-size="30" font-weight="700">vocab_extract_v1</text>
+  <text x="942" y="177" fill="#4E4334" font-family="Arial, sans-serif" font-size="14" font-weight="700">MODEL</text>
+  <text x="942" y="214" fill="#17322C" font-family="Georgia, serif" font-size="30" font-weight="700">ali / qwen-plus</text>
+  <rect x="1266" y="176" width="132" height="36" rx="18" fill="#DDE8C2"/>
+  <text x="1296" y="199" fill="#476021" font-family="Arial, sans-serif" font-size="15" font-weight="700">COMPLETED</text>
+  <text x="84" y="254" fill="#6F624E" font-family="Arial, sans-serif" font-size="16">Created 2026-03-27 23:57  •  Batch size 2  •  Temperature 0.1</text>
+
+  <rect x="56" y="324" width="224" height="122" rx="22" fill="#17322C"/>
+  <text x="82" y="360" fill="#CFDED8" font-family="Arial, sans-serif" font-size="14" font-weight="700">TOTAL SAMPLES</text>
+  <text x="82" y="412" fill="#F8F4EA" font-family="Georgia, serif" font-size="44" font-weight="700">10</text>
+
+  <rect x="298" y="324" width="224" height="122" rx="22" fill="#A34E2E"/>
+  <text x="324" y="360" fill="#FFD8C9" font-family="Arial, sans-serif" font-size="14" font-weight="700">RAW TERMS</text>
+  <text x="324" y="412" fill="#FFF6EE" font-family="Georgia, serif" font-size="44" font-weight="700">90</text>
+
+  <rect x="540" y="324" width="224" height="122" rx="22" fill="#7B8B49"/>
+  <text x="566" y="360" fill="#E6F0C7" font-family="Arial, sans-serif" font-size="14" font-weight="700">VALID TERMS</text>
+  <text x="566" y="412" fill="#F4F7EA" font-family="Georgia, serif" font-size="44" font-weight="700">89</text>
+
+  <rect x="782" y="324" width="224" height="122" rx="22" fill="#DCCDB2"/>
+  <text x="808" y="360" fill="#61513C" font-family="Arial, sans-serif" font-size="14" font-weight="700">INVALID TERMS</text>
+  <text x="808" y="412" fill="#17322C" font-family="Georgia, serif" font-size="44" font-weight="700">1</text>
+
+  <rect x="1024" y="324" width="248" height="122" rx="22" fill="#E6D4C4"/>
+  <text x="1050" y="360" fill="#7E5B4D" font-family="Arial, sans-serif" font-size="14" font-weight="700">TERM CANDIDATES</text>
+  <text x="1050" y="412" fill="#17322C" font-family="Georgia, serif" font-size="44" font-weight="700">73</text>
+
+  <rect x="1290" y="324" width="254" height="122" rx="22" fill="#E7E1D5"/>
+  <text x="1316" y="360" fill="#655844" font-family="Arial, sans-serif" font-size="14" font-weight="700">ACTIONS</text>
+  <rect x="1316" y="378" width="88" height="30" rx="15" fill="#17322C"/><text x="1342" y="398" fill="#F8F4EA" font-family="Arial, sans-serif" font-size="14" font-weight="700">Re-run</text>
+  <rect x="1418" y="378" width="100" height="30" rx="15" fill="#C9B89D"/><text x="1447" y="398" fill="#4F4437" font-family="Arial, sans-serif" font-size="14" font-weight="700">Export</text>
+
+  <rect x="56" y="478" width="772" height="558" rx="24" fill="#FFFFFF"/>
+  <text x="88" y="520" fill="#17322C" font-family="Georgia, serif" font-size="28" font-weight="700">Raw Terms</text>
+  <text x="88" y="548" fill="#72604A" font-family="Arial, sans-serif" font-size="15">Filtered list of model output after JSON parsing and evidence validation.</text>
+  <line x1="88" y1="580" x2="796" y2="580" stroke="#E7DECF"/>
+  <text x="88" y="608" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Term</text>
+  <text x="310" y="608" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Validation</text>
+  <text x="460" y="608" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Confidence</text>
+  <text x="580" y="608" fill="#6C5944" font-family="Arial, sans-serif" font-size="14" font-weight="700">Doc / Chunk</text>
+
+  <g font-family="Arial, sans-serif" font-size="15" fill="#17322C">
+    <rect x="84" y="628" width="716" height="86" rx="18" fill="#F7F2E8"/>
+    <text x="100" y="662">恢复性增长</text>
+    <rect x="286" y="642" width="78" height="26" rx="13" fill="#DDE8C2"/><text x="307" y="660" fill="#476021">VALID</text>
+    <text x="470" y="662">0.95</text>
+    <text x="580" y="662">...chunk_000006</text>
+    <text x="100" y="690" fill="#74614C">证据: 中国经济正在进入恢复性增长阶段……</text>
+
+    <rect x="84" y="730" width="716" height="86" rx="18" fill="#F7F2E8"/>
+    <text x="100" y="764">房地产政策</text>
+    <rect x="286" y="744" width="78" height="26" rx="13" fill="#DDE8C2"/><text x="307" y="762" fill="#476021">VALID</text>
+    <text x="470" y="764">0.95</text>
+    <text x="580" y="764">...chunk_000010</text>
+    <text x="100" y="792" fill="#74614C">证据: 房地产政策的调整和汽车政策的刺激……</text>
+
+    <rect x="84" y="832" width="716" height="86" rx="18" fill="#FBF2EF"/>
+    <text x="100" y="866">附件三</text>
+    <rect x="286" y="846" width="112" height="26" rx="13" fill="#F2D0C2"/><text x="307" y="864" fill="#8D4A31">FILTERED_NOISE</text>
+    <text x="470" y="866">0.50</text>
+    <text x="580" y="866">...chunk_000002</text>
+    <text x="100" y="894" fill="#7D5A4C">证据: 目录样式文本，未进入 term_candidate</text>
+  </g>
+
+  <rect x="852" y="478" width="692" height="558" rx="24" fill="#FFFFFF"/>
+  <text x="884" y="520" fill="#17322C" font-family="Georgia, serif" font-size="28" font-weight="700">Prompt and Candidate Output</text>
+  <text x="884" y="548" fill="#72604A" font-family="Arial, sans-serif" font-size="15">Prompt version, response contract, and aggregated term candidate examples.</text>
+  <rect x="884" y="584" width="628" height="178" rx="20" fill="#17322C"/>
+  <text x="910" y="618" fill="#E7F0EC" font-family="Arial, sans-serif" font-size="14" font-weight="700">SYSTEM + USER PROMPT</text>
+  <text x="910" y="650" fill="#D7E5DF" font-family="Arial, sans-serif" font-size="15">只能基于给定文本提取术语。每个 term 必须带 evidence，输出 JSON。</text>
+  <text x="910" y="680" fill="#F8F4EA" font-family="Courier New, monospace" font-size="14">[{"term":"术语","evidence":"原文证据","confidence":0.95}]</text>
+  <text x="910" y="718" fill="#D7E5DF" font-family="Arial, sans-serif" font-size="15">当前实现支持 batch prompt，批量失败会自动降级为单条执行。</text>
+
+  <rect x="884" y="790" width="628" height="214" rx="20" fill="#F7F2E8"/>
+  <text x="910" y="824" fill="#17322C" font-family="Arial, sans-serif" font-size="14" font-weight="700">AGGREGATED INTO term_candidate</text>
+  <text x="910" y="860" fill="#17322C" font-family="Georgia, serif" font-size="22" font-weight="700">恢复性增长</text>
+  <text x="910" y="892" fill="#6D5B46" font-family="Arial, sans-serif" font-size="15">source = ai_extract   •   status = CANDIDATE   •   evidence_count = 3</text>
+  <text x="910" y="928" fill="#6D5B46" font-family="Arial, sans-serif" font-size="15">run = run_0ef28f44343f48c0818fd83b   •   sample = smoke_v1</text>
+  <text x="910" y="964" fill="#17322C" font-family="Arial, sans-serif" font-size="15">evidence jsonb keeps run/sample/doc/chunk/raw_term_id for traceability.</text>
+</svg>

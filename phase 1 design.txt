@@ -1,0 +1,439 @@
+Vocabulary AI Phase 1 Architecture
+
+1. 文档目标
+本设计用于定义“AI 介入第一阶段”的整体架构方案。Phase 1 的目标不是让 AI 直接参与检索或规则执行，而是建设一套可复现、可追溯、可治理的离线术语生产能力。
+
+本阶段交付的核心能力：
+
+基于标准化内容层生成冻结样本
+基于冻结样本执行 AI 术语抽取
+将 AI 结果以候选术语形式进入治理流程
+保证 AI 输出带 evidence、带 run、带 version
+不影响现有索引、检索、运行时链路
+2. 背景与问题
+当前系统已具备：
+
+数据接入
+文档解析与清洗
+chunk 切分
+embedding 生成
+Solr 索引
+NLP 候选词生产
+现有缺口在于：
+
+NLP 候选词偏统计，不足以表达完整业务短语
+词汇生产缺少语义抽取能力
+AI 若直接接入导入链路，会破坏稳定性、可追溯性和治理边界
+因此需要将 AI 设计为独立的离线术语生产层，而非在线处理器。
+
+3. 设计目标
+Phase 1 设计目标如下：
+
+Separation
+AI 与 ingestion、search、runtime 解耦
+
+Traceability
+每个术语必须追溯到 sample、run、doc、evidence
+
+Reproducibility
+同一版本 sample 可复跑，结果可比较
+
+Governability
+AI 结果仅进入候选层，不直接进入规则层
+
+Scalability
+适配通用系统，不依赖预定义业务分类
+
+Quality
+通过 sample 选择、evidence 校验、候选治理控制结果质量
+
+4. 非目标
+Phase 1 不包含以下能力：
+
+AI 在线 query rewrite
+AI 实时搜索召回
+AI 自动生成并发布规则
+AI 自动替代人工审核
+全量主题建模与盲区检测
+基于反馈的自动 prompt 学习闭环
+这些能力可以属于后续 Phase 2/3。
+
+5. 总体架构
+整体架构分为 6 层：
+
+Content Normalization Layer
+Sample Management Layer
+AI Extraction Layer
+Validation & Aggregation Layer
+Vocabulary Governance Layer
+Consumption Layer
+逻辑数据流如下：
+
+原始文档进入 ingestion
+文档被清洗、切块、向量化并写入 Solr
+Sample Job 从 Solr chunk 中选择代表性样本，生成 sample_version
+AI Run 基于 sample_version 发起术语抽取
+AI 原始输出进入 validation 和 aggregation
+合格结果写入 term_candidate
+人工审核后进入正式术语库
+正式术语库供 Topic/Rule/UI 推荐消费
+6. 分层设计
+
+6.1 Content Normalization Layer
+职责：
+
+接收文件/文本/URI/网页/邮件等数据
+输出统一结构化文档
+完成 chunk 切分和 embedding 持久化
+输入：
+
+各类原始文档
+输出：
+
+doc_id
+chunk_id
+chunk_content
+title
+metadata
+_gl_vector
+说明：
+该层不承担 AI 抽词职责，仅为上层提供标准内容基础。
+
+6.2 Sample Management Layer
+职责：
+
+从标准内容层选择样本
+冻结 sample 版本
+保存用于 AI 的证据文本
+核心原则：
+
+sample 不是随机抽样
+sample 不是 search 动态结果
+sample 必须版本化
+sample 必须可追溯
+样本选择策略：
+
+以 chunk 为锚点
+以 chunk embedding 做多样性采样
+以 quality score 做质量过滤
+以 context window 组装 AI 输入文本
+产出对象：
+
+sample_version
+sample_items
+6.3 AI Extraction Layer
+职责：
+
+管理抽词 run
+按 sample 分批调用 LLM
+解析结构化术语结果
+设计原则：
+
+run 必须独立编号
+run 必须绑定 sample_version
+run 必须绑定 prompt_version
+run 必须记录 model/provider/config
+输入：
+
+dataset
+sample_version
+prompt_version
+model_config
+输出：
+
+ai_run
+raw extracted terms
+6.4 Validation & Aggregation Layer
+职责：
+
+校验模型输出结构
+校验 evidence 是否来自原文
+规范化 term
+合并重复 term
+生成可治理候选词
+校验规则至少包括：
+
+JSON 合法
+term 非空
+evidence 非空
+evidence 能在 sample_content 中定位
+term 不属于明显噪声短语
+合并规则至少包括：
+
+同 run 内相同 normalized_term 合并
+聚合 evidence_count
+聚合 confidence
+保留代表 evidence
+6.5 Vocabulary Governance Layer
+职责：
+
+承接 AI 候选词
+支持人工审核
+决定是否进入正式术语库
+重要原则：
+
+AI 只影响 candidate 层
+不直接改变规则层
+人工审核仍是生效关口
+状态流建议：
+
+CANDIDATE
+APPROVED
+REJECTED
+PUBLISHED
+6.6 Consumption Layer
+职责：
+
+为 Topic 构建提供术语推荐
+为规则编辑提供短语建议
+为运营和审核提供来源追踪
+Phase 1 中允许的消费方式：
+
+候选词列表展示
+AI 推荐词 UI
+Topic 构建时建议词
+Phase 1 中不允许的消费方式：
+
+自动修改用户查询
+自动进入在线搜索逻辑
+7. 核心对象
+Phase 1 核心对象如下：
+
+Dataset
+业务数据集合
+
+SampleVersion
+某个数据集的一次冻结样本集合
+
+SampleItem
+一个被 AI 使用的证据片段
+
+AIRun
+一次固定条件下的 AI 抽词执行
+
+AIRawTerm
+模型原始输出术语
+
+term_candidate
+进入治理层的候选术语
+
+这些对象之间的关系为：
+
+一个 Dataset 有多个 SampleVersion
+一个 SampleVersion 有多个 SampleItem
+一个 AIRun 绑定一个 SampleVersion
+一个 AIRun 产生多个 AIRawTerm
+多个 AIRawTerm 聚合成 term_candidate
+8. 关键标识与版本策略
+
+8.1 Sample Version
+用于冻结 AI 输入集。
+
+要求：
+
+新版本只新增，不覆盖
+一个 sample_version 对应一组固定 sample items
+sample_version 必须可回放
+示例：
+
+policy_base_v1
+policy_base_v2
+8.2 Prompt Version
+用于冻结抽词提示词。
+
+要求：
+
+prompt 版本独立管理
+每次 run 必须显式记录使用的 prompt_version
+示例：
+
+vocab_extract_v1
+vocab_extract_v2
+8.3 AI Run ID
+用于标识一次抽词运行。
+
+要求：
+
+每次 run 唯一
+与 sample_version、prompt_version、model config 绑定
+示例：
+
+run_20260401_0001
+9. 数据流设计
+
+9.1 Sample Generation Flow
+
+从 Solr 读取 chunk 候选
+过滤低质量 chunk
+基于 _gl_vector 做多样性采样
+回查上下文构建 sample_content
+生成 sample_version
+持久化 sample items
+9.2 AI Extraction Flow
+
+创建 ai_run
+读取 sample items
+分批调用模型
+解析结构化结果
+evidence 校验
+写入 AI raw terms
+聚合生成 term_candidate
+9.3 Governance Flow
+
+审核候选词
+批准或拒绝
+批准词进入正式词库
+被正式词库用于 Topic / Rule 推荐
+10. 关键架构决策
+
+决策 1：AI 不进入 ingestion pipeline
+原因：
+
+ingestion 追求稳定和吞吐
+AI 抽词追求版本化和治理
+两者职责不同
+结论：
+AI 作为 ingestion 之后的离线 enrichment。
+
+决策 2：AI 基于 sample，而非实时 search
+原因：
+
+search 结果动态变化，不可复现
+实时数据不可审计
+prompt 输入会漂移
+结论：
+AI 只消费冻结的 sample_version。
+
+决策 3：sample 以 chunk 为锚点
+原因：
+
+doc 粒度过粗
+chunk 更适合表达单一语义
+系统已有 chunk embedding 可复用
+结论：
+sample item 以 chunk 为主，但保留上下文窗口。
+
+决策 4：AI 结果必须带 evidence
+原因：
+
+防止 hallucination
+支持人工审核
+支持质量回溯
+结论：
+无 evidence 的 term 不得进入 candidate。
+
+决策 5：candidate-first，而非 direct publish
+原因：
+
+AI 结果不应绕过治理
+业务术语属于受控资产
+结论：
+AI 仅新增候选来源。
+
+11. 质量保障机制
+Phase 1 质量保障由 4 层组成：
+
+11.1 Sample 质量控制
+
+文本长度过滤
+正文密度过滤
+噪声片段过滤
+向量多样性控制
+11.2 Prompt 控制
+
+限定只基于原文
+限定输出结构
+限定术语类型
+允许空结果
+11.3 Output 校验
+
+JSON schema 校验
+evidence 定位校验
+噪声 term 过滤
+term 规范化
+11.4 Human Governance
+
+审核
+批量拒绝
+批量通过
+evidence 查看
+12. 可观测性设计
+建议 Phase 1 就具备基础指标：
+
+Sample 指标
+
+候选池大小
+最终样本数量
+平均质量分
+平均相似度
+选样耗时
+AI Run 指标
+
+run 数量
+总 sample 数
+成功 sample 数
+失败 sample 数
+总 term 数
+有效 term 数
+evidence 校验失败数
+平均 term/sample
+治理指标
+
+candidate 数量
+审核通过率
+审核拒绝率
+AI 候选人工接受率
+13. 安全与合规
+Phase 1 要求：
+
+sample 和 evidence 仅来自已接入的受控内容
+模型调用参数可审计
+敏感数据处理沿用现有清洗/脱敏规则
+所有 AI 输出必须保留 run 级审计信息
+14. 风险与缓解措施
+
+风险 1：sample 偏科
+缓解：
+
+使用质量过滤 + diversity sampling
+固定 sample size 范围
+保留 sample generation metrics
+风险 2：AI 幻觉输出
+缓解：
+
+evidence 强制要求
+evidence 定位校验
+无 evidence 直接丢弃
+风险 3：结果不可复现
+缓解：
+
+强制 sample_version
+强制 prompt_version
+强制 model config 记录
+风险 4：候选词过多，审核压力大
+缓解：
+
+term merge
+confidence 排序
+evidence_count 聚合
+噪声短语过滤
+15. Phase 1 交付边界
+Phase 1 完成后，系统应能够：
+
+生成 BASE sample
+基于 sample 发起 AI 抽词 run
+保存 raw AI terms
+生成 source=ai_extract 的 term_candidate
+支持基于 evidence 的人工审核
+Phase 1 不要求：
+
+blind sample
+topic sample
+reviewer feedback 学习
+AI 自动生成规则
+在线 query understanding
+16. 结论
+Phase 1 的本质不是“把 LLM 接进来”，而是建设一条企业级的离线术语生产链路。该链路以标准内容层为输入，以冻结 sample 为边界，以 AI run 为执行单元，以 term_candidate  为治理入口，从而在不破坏现有检索架构的前提下，让 AI 成为可信的词汇生产能力。
+
+
+Sample Generation Design
