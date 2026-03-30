@@ -6,14 +6,22 @@ from sqlalchemy.orm import Session
 
 from app.ai_vocabulary.models import AIVocabularyRun, DatasetSampleItem, DatasetSampleVersion
 from app.ai_vocabulary.schemas import (
+    AddRawTermCandidateRequest,
+    AddRawTermCandidateResponse,
+    CompareRunResponse,
     CreatePromptVersionRequest,
     CreateRunRequest,
     GenerateSampleRequest,
+    InvalidBreakdownResponse,
+    IgnoreRawTermRequest,
+    IgnoreRawTermResponse,
     PromptVersionResponse,
-    RawTermResponse,
+    RerunRequest,
     ReviewCandidateRequest,
+    RunDetailSummaryResponse,
     RunLogResponse,
-    RunSummaryResponse,
+    RunTermsPageResponse,
+    RunTopCandidatesResponse,
     RunResponse,
     SampleItemResponse,
     SampleVersionResponse,
@@ -23,6 +31,7 @@ from app.ai_vocabulary.schemas import (
 from app.ai_vocabulary.services import (
     AIVocabularyRunService,
     PromptVersionService,
+    RawTermGovernanceService,
     RunAnalyticsService,
     SampleGenerationService,
     TermCandidateService,
@@ -140,14 +149,36 @@ def execute_run_async(run_id: str, background_tasks: BackgroundTasks, db: DbSess
     return {"status": "queued", "run_id": run_id, "task_id": None, "mode": "background-task"}
 
 
-@router.get("/runs/{run_id}/terms", response_model=list[RawTermResponse], summary="List raw extracted terms")
-def list_run_terms(run_id: str, db: DbSession):
-    from app.ai_vocabulary.models import AIVocabularyTermRaw
-
-    stmt = select(AIVocabularyTermRaw).where(
-        AIVocabularyTermRaw.ai_run_id == run_id
-    ).order_by(AIVocabularyTermRaw.created_at.asc())
-    return list(db.scalars(stmt).all())
+@router.get("/runs/{run_id}/terms", response_model=RunTermsPageResponse, summary="List run terms with filters")
+def list_run_terms(
+    run_id: str,
+    db: DbSession,
+    validationStatus: str | None = None,
+    confidenceMin: float | None = None,
+    hasCandidate: bool | None = None,
+    docId: str | None = None,
+    term: str | None = None,
+    sortBy: str = "createdAt",
+    sortOrder: str = "desc",
+    page: int = 1,
+    size: int = 20,
+):
+    service = RunAnalyticsService(db)
+    try:
+        return service.list_run_terms(
+            run_id=run_id,
+            validation_status=validationStatus,
+            confidence_min=confidenceMin,
+            has_candidate=hasCandidate,
+            doc_id=docId,
+            term=term,
+            sort_by=sortBy,
+            sort_order=sortOrder,
+            page=page,
+            size=size,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/candidates", response_model=list[TermCandidateResponse], summary="List AI vocabulary candidates")
@@ -233,11 +264,112 @@ def create_prompt_version(request: CreatePromptVersionRequest, db: DbSession):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@router.get("/runs/{run_id}/summary", response_model=RunSummaryResponse, summary="Get run analytics summary")
+@router.get("/runs/{run_id}/summary", response_model=RunDetailSummaryResponse, summary="Get run analytics summary")
 def get_run_summary(run_id: str, db: DbSession):
     service = RunAnalyticsService(db)
     try:
         return service.get_run_summary(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/runs/{run_id}/invalid-breakdown",
+    response_model=InvalidBreakdownResponse,
+    summary="Get invalid term breakdown",
+)
+def get_invalid_breakdown(run_id: str, db: DbSession):
+    service = RunAnalyticsService(db)
+    try:
+        return service.get_invalid_breakdown(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/runs/{run_id}/top-candidates",
+    response_model=RunTopCandidatesResponse,
+    summary="Get top linked candidates for a run",
+)
+def get_top_candidates(run_id: str, db: DbSession, limit: int = 20):
+    service = RunAnalyticsService(db)
+    try:
+        return service.get_top_candidates(run_id=run_id, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/runs/{run_id}/compare", response_model=CompareRunResponse, summary="Compare two runs")
+def compare_runs(run_id: str, targetRunId: str, db: DbSession, topN: int = 20):
+    service = RunAnalyticsService(db)
+    try:
+        return service.compare_runs(run_id=run_id, target_run_id=targetRunId, top_n=topN)
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if "not found" in message.lower() else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+
+
+@router.post("/runs/{run_id}/rerun", response_model=RunResponse, summary="Create a rerun from an existing run")
+def rerun(run_id: str, request: RerunRequest, db: DbSession):
+    service = AIVocabularyRunService(db)
+    try:
+        return service.rerun(
+            source_run_id=run_id,
+            prompt_version=request.promptVersion,
+            temperature=request.temperature,
+            provider=request.provider,
+            model_name=request.modelName,
+            batch_size=request.batchSize,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if "not found" in message.lower() else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+
+
+@router.post(
+    "/raw-terms/{raw_term_id}/candidate",
+    response_model=AddRawTermCandidateResponse,
+    summary="Push a raw term into candidate governance",
+)
+def add_raw_term_to_candidate(raw_term_id: str, request: AddRawTermCandidateRequest, db: DbSession):
+    service = RawTermGovernanceService(db)
+    try:
+        return service.add_to_candidate(
+            raw_term_id=raw_term_id,
+            term=request.term,
+            normalized_term=request.normalizedTerm,
+            source=request.source,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if "not found" in message.lower() else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+
+
+@router.post(
+    "/raw-terms/{raw_term_id}/ignore",
+    response_model=IgnoreRawTermResponse,
+    summary="Ignore a raw term from run detail tuning views",
+)
+def ignore_raw_term(raw_term_id: str, request: IgnoreRawTermRequest, db: DbSession):
+    service = RawTermGovernanceService(db)
+    try:
+        return service.ignore_raw_term(raw_term_id=raw_term_id, reason=request.reason, note=request.note)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/raw-terms/{raw_term_id}/unignore",
+    response_model=IgnoreRawTermResponse,
+    summary="Restore a previously ignored raw term",
+)
+def unignore_raw_term(raw_term_id: str, db: DbSession):
+    service = RawTermGovernanceService(db)
+    try:
+        return service.unignore_raw_term(raw_term_id=raw_term_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

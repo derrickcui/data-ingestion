@@ -118,6 +118,42 @@ def _run_lightweight_migrations() -> None:
                 conn.execute(
                     text("ALTER TABLE ai_vocabulary_terms_raw ADD COLUMN evidence_end INTEGER")
                 )
+            if "ignored_at" not in existing_columns:
+                conn.execute(
+                    text("ALTER TABLE ai_vocabulary_terms_raw ADD COLUMN ignored_at TIMESTAMPTZ")
+                )
+            if "ignore_reason" not in existing_columns:
+                conn.execute(
+                    text("ALTER TABLE ai_vocabulary_terms_raw ADD COLUMN ignore_reason VARCHAR(64)")
+                )
+            if "ignore_note" not in existing_columns:
+                conn.execute(
+                    text("ALTER TABLE ai_vocabulary_terms_raw ADD COLUMN ignore_note TEXT")
+                )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_ai_vocabulary_terms_raw_run_validation "
+                    "ON ai_vocabulary_terms_raw (ai_run_id, validation_status)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_ai_vocabulary_terms_raw_run_confidence "
+                    "ON ai_vocabulary_terms_raw (ai_run_id, confidence)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_ai_vocabulary_terms_raw_run_doc "
+                    "ON ai_vocabulary_terms_raw (ai_run_id, doc_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_ai_vocabulary_terms_raw_ignored_at "
+                    "ON ai_vocabulary_terms_raw (ignored_at)"
+                )
+            )
 
     if "ai_vocabulary_run_logs" in existing_tables:
         with engine.begin() as conn:

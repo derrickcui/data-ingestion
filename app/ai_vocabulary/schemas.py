@@ -162,6 +162,134 @@ class RunSummaryResponse(BaseModel):
     candidate_count: int
 
 
+class RunSummaryMetricsResponse(BaseModel):
+    totalSamples: int
+    rawTerms: int
+    validTerms: int
+    invalidTerms: int
+    candidates: int
+    validRate: float
+    evidenceFailRate: float
+    noiseRate: float
+
+
+class RunDetailSummaryResponse(BaseModel):
+    runId: str
+    dataset: str
+    sampleVersion: str
+    promptVersion: str
+    model: str
+    status: str
+    createdAt: datetime
+    startedAt: datetime | None = None
+    finishedAt: datetime | None = None
+    metrics: RunSummaryMetricsResponse
+
+
+class InvalidBreakdownItemResponse(BaseModel):
+    type: str
+    count: int
+
+
+class InvalidBreakdownResponse(BaseModel):
+    breakdown: list[InvalidBreakdownItemResponse]
+
+
+class RunTermItemResponse(BaseModel):
+    rawTermId: str
+    term: str
+    normalizedTerm: str
+    confidence: float
+    validationStatus: str
+    docId: str
+    chunkId: str
+    evidence: str
+    evidenceStart: int | None = None
+    evidenceEnd: int | None = None
+    hasCandidate: bool
+    candidateId: int | None = None
+
+
+class RunTermsPageResponse(BaseModel):
+    total: int
+    items: list[RunTermItemResponse]
+
+
+class RunTopCandidateItemResponse(BaseModel):
+    term: str
+    candidateId: int
+    evidenceCount: int
+
+
+class RunTopCandidatesResponse(BaseModel):
+    items: list[RunTopCandidateItemResponse]
+
+
+class RerunRequest(BaseModel):
+    promptVersion: str | None = None
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    provider: str | None = None
+    modelName: str | None = None
+    batchSize: int | None = Field(default=None, ge=1, le=50)
+
+
+class CompareRunMetricsDiffResponse(BaseModel):
+    rawTerms: int
+    validTerms: int
+    invalidTerms: int
+    candidates: int
+    validRate: float
+    evidenceFailRate: float
+    noiseRate: float
+
+
+class CompareRunInvalidBreakdownDiffItemResponse(BaseModel):
+    type: str
+    baseCount: int
+    targetCount: int
+    delta: int
+
+
+class CompareRunTopTermChangeItemResponse(BaseModel):
+    term: str
+    baseCount: int
+    targetCount: int
+    changeType: str
+
+
+class CompareRunResponse(BaseModel):
+    baseRun: RunDetailSummaryResponse
+    targetRun: RunDetailSummaryResponse
+    metricsDiff: CompareRunMetricsDiffResponse
+    invalidBreakdownDiff: list[CompareRunInvalidBreakdownDiffItemResponse]
+    topTermChanges: list[CompareRunTopTermChangeItemResponse]
+
+
+class AddRawTermCandidateRequest(BaseModel):
+    term: str
+    normalizedTerm: str | None = None
+    source: str = "AI_RUN_DETAIL"
+
+
+class AddRawTermCandidateResponse(BaseModel):
+    candidateId: int
+    term: str
+    status: str
+    createdAt: datetime
+
+
+class IgnoreRawTermRequest(BaseModel):
+    reason: str = "FILTERED_NOISE"
+    note: str | None = None
+
+
+class IgnoreRawTermResponse(BaseModel):
+    rawTermId: str
+    ignored: bool
+    ignoredAt: datetime | None = None
+    validationStatus: str
+
+
 class TermCandidateEvidenceResponse(BaseModel):
     raw_term_id: str | None = None
     doc_id: str | None = None

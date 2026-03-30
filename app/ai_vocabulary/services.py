@@ -10,7 +10,7 @@ from statistics import mean
 from typing import Any
 
 import requests
-from sqlalchemy import func, select
+from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.ai_providers.aliyun_client import AliEmbeddingClient
@@ -31,6 +31,38 @@ from app.ai_vocabulary.models import (
 from app.ai_vocabulary.schemas import CreateRunRequest, GenerateSampleRequest
 from app.utility.config import Config
 from app.utility.log import logger
+
+LOW_CONFIDENCE_THRESHOLD = 0.6
+RUN_TERM_SORT_FIELDS = {
+    "createdAt": AIVocabularyTermRaw.created_at,
+    "confidence": AIVocabularyTermRaw.confidence,
+    "term": AIVocabularyTermRaw.term,
+    "normalizedTerm": AIVocabularyTermRaw.normalized_term,
+    "validationStatus": AIVocabularyTermRaw.validation_status,
+    "docId": AIVocabularyTermRaw.doc_id,
+}
+VALIDATION_STATUS_COMPATIBILITY = {
+    "VALID": {"VALID"},
+    "INVALID_JSON": {"INVALID_JSON", "INVALID_SCHEMA", "INVALID_MODEL_OUTPUT"},
+    "INVALID_EVIDENCE": {"INVALID_EVIDENCE", "INVALID_TERM_MISMATCH"},
+    "FILTERED_NOISE": {"FILTERED_NOISE", "FILTERED_PLACEHOLDER"},
+    "LOW_CONFIDENCE": {"LOW_CONFIDENCE"},
+}
+
+
+def normalize_validation_status(status: str | None, confidence: float | None = None) -> str:
+    normalized = (status or "").strip().upper()
+    if normalized == "VALID" and confidence is not None and confidence < LOW_CONFIDENCE_THRESHOLD:
+        return "LOW_CONFIDENCE"
+    if normalized in VALIDATION_STATUS_COMPATIBILITY["INVALID_JSON"]:
+        return "INVALID_JSON"
+    if normalized in VALIDATION_STATUS_COMPATIBILITY["INVALID_EVIDENCE"]:
+        return "INVALID_EVIDENCE"
+    if normalized in VALIDATION_STATUS_COMPATIBILITY["FILTERED_NOISE"]:
+        return "FILTERED_NOISE"
+    if normalized in VALIDATION_STATUS_COMPATIBILITY["LOW_CONFIDENCE"]:
+        return "LOW_CONFIDENCE"
+    return normalized or "INVALID_JSON"
 
 
 @dataclass
@@ -512,6 +544,53 @@ class AIVocabularyRunService:
         self.db.refresh(run)
         return run
 
+    def rerun(
+        self,
+        source_run_id: str,
+        prompt_version: str | None = None,
+        temperature: float | None = None,
+        provider: str | None = None,
+        model_name: str | None = None,
+        batch_size: int | None = None,
+    ) -> AIVocabularyRun:
+        source_run = self.db.get(AIVocabularyRun, source_run_id)
+        if source_run is None:
+            raise ValueError(f"Run not found: {source_run_id}")
+
+        effective_prompt_version = prompt_version or source_run.prompt_version
+        PromptVersionService(self.db).get_prompt_version(effective_prompt_version)
+
+        total_samples = self.db.scalar(
+            select(func.count(DatasetSampleItem.id)).where(
+                DatasetSampleItem.sample_version_id == source_run.sample_version_id
+            )
+        ) or 0
+        base_run_key = self._build_run_key(
+            dataset=source_run.dataset,
+            sample_version_id=source_run.sample_version_id,
+            prompt_version=effective_prompt_version,
+            provider=provider or source_run.provider,
+            model_name=model_name if model_name is not None else source_run.model_name,
+            temperature=temperature if temperature is not None else source_run.temperature,
+        )
+        unique_seed = f"{source_run_id}|{datetime.now(timezone.utc).isoformat()}"
+        run = AIVocabularyRun(
+            dataset=source_run.dataset,
+            sample_version_id=source_run.sample_version_id,
+            run_key=f"{base_run_key}_{hashlib.md5(unique_seed.encode('utf-8')).hexdigest()[:8]}",
+            prompt_version=effective_prompt_version,
+            provider=provider or source_run.provider,
+            model_name=model_name if model_name is not None else source_run.model_name,
+            temperature=temperature if temperature is not None else source_run.temperature,
+            batch_size=batch_size if batch_size is not None else source_run.batch_size,
+            status="CREATED",
+            total_samples=total_samples,
+        )
+        self.db.add(run)
+        self.db.commit()
+        self.db.refresh(run)
+        return run
+
     def execute_run(self, run_id: str) -> AIVocabularyRun:
         run = self.db.get(AIVocabularyRun, run_id)
         if run is None:
@@ -666,6 +745,7 @@ class AIVocabularyRunService:
                             term,
                             evidence,
                             raw_output,
+                            confidence,
                         )
                         evidence_start, evidence_end = self._find_evidence_span(item.sample_content, evidence)
 
@@ -1053,19 +1133,22 @@ class AIVocabularyRunService:
         term: str,
         evidence: str,
         raw_model_output: str,
+        confidence: float | None = None,
     ) -> str:
         if not term or not evidence:
-            return "INVALID_SCHEMA"
+            return "INVALID_JSON"
         if self._is_placeholder_term(term):
-            return "FILTERED_PLACEHOLDER"
+            return "FILTERED_NOISE"
         if not self._raw_output_supports_extraction(raw_model_output, term, evidence):
-            return "INVALID_MODEL_OUTPUT"
+            return "INVALID_JSON"
         if evidence not in sample_content:
             return "INVALID_EVIDENCE"
         if term not in evidence and term not in sample_content:
-            return "INVALID_TERM_MISMATCH"
+            return "INVALID_EVIDENCE"
         if len(term) < 2:
             return "FILTERED_NOISE"
+        if confidence is not None and confidence < LOW_CONFIDENCE_THRESHOLD:
+            return "LOW_CONFIDENCE"
         return "VALID"
 
     def _is_placeholder_term(self, term: str) -> bool:
@@ -1408,7 +1491,7 @@ class TermCandidateService:
         rows = [
             item
             for item in self._normalize_evidence(candidate.evidence)
-            if item.get("source") == "ai_extract"
+            if self._is_ai_vocabulary_evidence(item)
         ]
         return [
             {
@@ -1428,7 +1511,7 @@ class TermCandidateService:
         ai_evidence = [
             item
             for item in self._normalize_evidence(candidate.evidence)
-            if item.get("source") == "ai_extract"
+            if self._is_ai_vocabulary_evidence(item)
         ]
         ai_evidence = sorted(
             ai_evidence,
@@ -1477,6 +1560,10 @@ class TermCandidateService:
             return [item for item in evidence if isinstance(item, dict)]
         return []
 
+    def _is_ai_vocabulary_evidence(self, item: dict[str, Any]) -> bool:
+        source = str(item.get("source", "")).strip()
+        return source in {"ai_extract", "AI_RUN_DETAIL"} or bool(item.get("ai_run_id")) or bool(item.get("raw_term_id"))
+
     def _parse_datetime(self, value: Any) -> datetime:
         if isinstance(value, datetime):
             return value
@@ -1488,6 +1575,148 @@ class TermCandidateService:
         return datetime.now(timezone.utc)
 
 
+class RawTermGovernanceService:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def add_to_candidate(
+        self,
+        raw_term_id: str,
+        term: str,
+        normalized_term: str | None = None,
+        source: str = "AI_RUN_DETAIL",
+    ) -> dict[str, Any]:
+        raw_term = self._get_raw_term(raw_term_id)
+        normalized = normalized_term or self._normalize_term(term)
+        if not term.strip():
+            raise ValueError("term is required")
+
+        linkage = RunAnalyticsService(self.db)._get_run_candidate_linkage(raw_term.ai_run_id)
+        existing_candidate_id = linkage.get(raw_term.id)
+        if existing_candidate_id is not None:
+            candidate = self.db.get(TermCandidate, existing_candidate_id)
+            if candidate is None:
+                raise ValueError(f"Candidate not found: {existing_candidate_id}")
+            return {
+                "candidateId": candidate.id,
+                "term": candidate.canonical,
+                "status": candidate.status,
+                "createdAt": candidate.created_at,
+            }
+
+        evidence_item = {
+            "source": source or "AI_RUN_DETAIL",
+            "dataset": raw_term.dataset,
+            "ai_run_id": raw_term.ai_run_id,
+            "sample_item_id": raw_term.sample_item_id,
+            "raw_term_id": raw_term.id,
+            "doc_id": raw_term.doc_id,
+            "chunk_id": raw_term.chunk_id,
+            "evidence": raw_term.evidence,
+            "confidence": raw_term.confidence,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "action": "manual_add_candidate",
+        }
+        candidate = self.db.scalar(
+            select(TermCandidate).where(func.lower(TermCandidate.canonical) == normalized)
+        )
+        if candidate is None:
+            candidate = TermCandidate(
+                canonical=term,
+                aliases=[],
+                role=None,
+                definition=None,
+                status="CANDIDATE",
+                confidence=raw_term.confidence,
+                source="ai_extract,AI_RUN_DETAIL",
+                owner="ai_vocabulary",
+                topics=[],
+                version=1,
+                submitted_by="ai_vocabulary",
+                evidence=[evidence_item],
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            )
+            self.db.add(candidate)
+            self.db.commit()
+            self.db.refresh(candidate)
+            return {
+                "candidateId": candidate.id,
+                "term": candidate.canonical,
+                "status": candidate.status,
+                "createdAt": candidate.created_at,
+            }
+
+        evidence_items = TermCandidateService(self.db)._normalize_evidence(candidate.evidence)
+        exists = any(str(item.get("raw_term_id", "")).strip() == raw_term.id for item in evidence_items)
+        if not exists:
+            evidence_items.append(evidence_item)
+        candidate.aliases = AIVocabularyRunService(self.db)._merge_aliases(candidate.aliases, term, candidate.canonical)
+        candidate.source = AIVocabularyRunService(self.db)._merge_source(candidate.source, "ai_extract")
+        candidate.source = AIVocabularyRunService(self.db)._merge_source(candidate.source, source or "AI_RUN_DETAIL")
+        candidate.confidence = max(candidate.confidence or 0.0, raw_term.confidence)
+        candidate.evidence = AIVocabularyRunService(self.db)._dedupe_evidence(evidence_items)
+        candidate.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.db.commit()
+        self.db.refresh(candidate)
+        return {
+            "candidateId": candidate.id,
+            "term": candidate.canonical,
+            "status": candidate.status,
+            "createdAt": candidate.created_at,
+        }
+
+    def ignore_raw_term(self, raw_term_id: str, reason: str, note: str | None = None) -> dict[str, Any]:
+        raw_term = self._get_raw_term(raw_term_id)
+        raw_term.ignored_at = datetime.now(timezone.utc)
+        raw_term.ignore_reason = (reason or "FILTERED_NOISE").strip().upper()
+        raw_term.ignore_note = note
+        raw_term.validation_status = raw_term.ignore_reason
+        self.db.commit()
+        self.db.refresh(raw_term)
+        return {
+            "rawTermId": raw_term.id,
+            "ignored": True,
+            "ignoredAt": raw_term.ignored_at,
+            "validationStatus": raw_term.validation_status,
+        }
+
+    def unignore_raw_term(self, raw_term_id: str) -> dict[str, Any]:
+        raw_term = self._get_raw_term(raw_term_id)
+        raw_term.ignored_at = None
+        raw_term.ignore_reason = None
+        raw_term.ignore_note = None
+        raw_term.validation_status = self._recompute_validation_status(raw_term)
+        self.db.commit()
+        self.db.refresh(raw_term)
+        return {
+            "rawTermId": raw_term.id,
+            "ignored": False,
+            "ignoredAt": None,
+            "validationStatus": raw_term.validation_status,
+        }
+
+    def _get_raw_term(self, raw_term_id: str) -> AIVocabularyTermRaw:
+        raw_term = self.db.get(AIVocabularyTermRaw, raw_term_id)
+        if raw_term is None:
+            raise ValueError(f"Raw term not found: {raw_term_id}")
+        return raw_term
+
+    def _normalize_term(self, term: str) -> str:
+        return " ".join((term or "").strip().split()).lower()
+
+    def _recompute_validation_status(self, raw_term: AIVocabularyTermRaw) -> str:
+        sample_item = self.db.get(DatasetSampleItem, raw_term.sample_item_id)
+        sample_content = sample_item.sample_content if sample_item is not None else raw_term.evidence
+        return AIVocabularyRunService(self.db)._validate_term(
+            sample_content=sample_content,
+            term=raw_term.term,
+            evidence=raw_term.evidence,
+            raw_model_output=raw_term.raw_model_output,
+            confidence=raw_term.confidence,
+        )
+
+
 class RunAnalyticsService:
     def __init__(self, db: Session):
         self.db = db
@@ -1496,32 +1725,333 @@ class RunAnalyticsService:
         run = self.db.get(AIVocabularyRun, run_id)
         if run is None:
             raise ValueError(f"Run not found: {run_id}")
-
-        raw_term_count = self.db.scalar(
-            select(func.count(AIVocabularyTermRaw.id)).where(AIVocabularyTermRaw.ai_run_id == run_id)
-        ) or 0
-        valid_term_count = self.db.scalar(
-            select(func.count(AIVocabularyTermRaw.id)).where(
-                AIVocabularyTermRaw.ai_run_id == run_id,
-                AIVocabularyTermRaw.validation_status == "VALID",
-            )
-        ) or 0
+        sample_version = self.db.get(DatasetSampleVersion, run.sample_version_id)
+        raw_terms = list(
+            self.db.scalars(
+                select(AIVocabularyTermRaw).where(
+                    AIVocabularyTermRaw.ai_run_id == run_id,
+                    AIVocabularyTermRaw.ignored_at.is_(None),
+                )
+            ).all()
+        )
+        breakdown = self._compute_breakdown(raw_terms)
+        raw_term_count = len(raw_terms)
+        valid_term_count = breakdown.get("VALID", 0)
         invalid_term_count = raw_term_count - valid_term_count
-        candidate_count = len(TermCandidateService(self.db).list_candidates(ai_run_id=run_id))
+        active_raw_term_ids = {row.id for row in raw_terms}
+        linkage = self._get_run_candidate_linkage(run_id)
+        candidate_count = len({candidate_id for raw_term_id, candidate_id in linkage.items() if raw_term_id in active_raw_term_ids})
 
         return {
-            "run_id": run.id,
-            "run_key": run.run_key,
+            "runId": run.id,
             "dataset": run.dataset,
-            "sample_version_id": run.sample_version_id,
+            "sampleVersion": sample_version.version_name if sample_version is not None else run.sample_version_id,
+            "promptVersion": run.prompt_version,
+            "model": run.model_name or run.provider,
             "status": run.status,
-            "total_samples": run.total_samples,
-            "processed_samples": run.processed_samples,
-            "total_terms": run.total_terms,
-            "last_heartbeat_at": run.last_heartbeat_at,
-            "last_progress_message": run.last_progress_message,
-            "raw_term_count": raw_term_count,
-            "valid_term_count": valid_term_count,
-            "invalid_term_count": invalid_term_count,
-            "candidate_count": candidate_count,
+            "createdAt": run.created_at,
+            "startedAt": run.started_at,
+            "finishedAt": run.finished_at,
+            "metrics": {
+                "totalSamples": run.total_samples,
+                "rawTerms": raw_term_count,
+                "validTerms": valid_term_count,
+                "invalidTerms": invalid_term_count,
+                "candidates": candidate_count,
+                "validRate": self._safe_rate(valid_term_count, raw_term_count),
+                "evidenceFailRate": self._safe_rate(breakdown.get("INVALID_EVIDENCE", 0), raw_term_count),
+                "noiseRate": self._safe_rate(breakdown.get("FILTERED_NOISE", 0), raw_term_count),
+            },
         }
+
+    def get_invalid_breakdown(self, run_id: str) -> dict[str, Any]:
+        self._require_run(run_id)
+        raw_terms = list(
+            self.db.scalars(
+                select(AIVocabularyTermRaw).where(
+                    AIVocabularyTermRaw.ai_run_id == run_id,
+                    AIVocabularyTermRaw.ignored_at.is_(None),
+                )
+            ).all()
+        )
+        breakdown = self._compute_breakdown(raw_terms)
+        ordered_types = ["INVALID_JSON", "INVALID_EVIDENCE", "FILTERED_NOISE", "LOW_CONFIDENCE"]
+        return {
+            "breakdown": [
+                {"type": status, "count": breakdown.get(status, 0)}
+                for status in ordered_types
+                if breakdown.get(status, 0) > 0
+            ]
+        }
+
+    def list_run_terms(
+        self,
+        run_id: str,
+        validation_status: str | None = None,
+        confidence_min: float | None = None,
+        has_candidate: bool | None = None,
+        doc_id: str | None = None,
+        term: str | None = None,
+        sort_by: str = "createdAt",
+        sort_order: str = "desc",
+        page: int = 1,
+        size: int = 20,
+    ) -> dict[str, Any]:
+        self._require_run(run_id)
+        linkage = self._get_run_candidate_linkage(run_id)
+        linked_ids = set(linkage.keys())
+
+        stmt = select(AIVocabularyTermRaw).where(
+            AIVocabularyTermRaw.ai_run_id == run_id,
+            AIVocabularyTermRaw.ignored_at.is_(None),
+        )
+        if validation_status:
+            stmt = self._apply_validation_status_filter(stmt, validation_status)
+        if confidence_min is not None:
+            stmt = stmt.where(AIVocabularyTermRaw.confidence >= confidence_min)
+        if doc_id:
+            stmt = stmt.where(AIVocabularyTermRaw.doc_id == doc_id)
+        if term:
+            like_pattern = f"%{term.strip()}%"
+            stmt = stmt.where(
+                or_(
+                    AIVocabularyTermRaw.term.ilike(like_pattern),
+                    AIVocabularyTermRaw.normalized_term.ilike(like_pattern),
+                )
+            )
+        if has_candidate is True:
+            if not linked_ids:
+                return {"total": 0, "items": []}
+            stmt = stmt.where(AIVocabularyTermRaw.id.in_(linked_ids))
+        elif has_candidate is False and linked_ids:
+            stmt = stmt.where(AIVocabularyTermRaw.id.not_in(linked_ids))
+
+        total = self.db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        sort_column = RUN_TERM_SORT_FIELDS.get(sort_by, AIVocabularyTermRaw.created_at)
+        sort_func = asc if (sort_order or "").lower() == "asc" else desc
+        page = max(page, 1)
+        size = max(1, min(size, 200))
+        rows = list(
+            self.db.scalars(
+                stmt.order_by(sort_func(sort_column), AIVocabularyTermRaw.id.asc())
+                .offset((page - 1) * size)
+                .limit(size)
+            ).all()
+        )
+        return {
+            "total": total,
+            "items": [self._serialize_run_term(row, linkage.get(row.id)) for row in rows],
+        }
+
+    def get_top_candidates(self, run_id: str, limit: int = 20) -> dict[str, Any]:
+        self._require_run(run_id)
+        items: list[dict[str, Any]] = []
+        active_raw_term_ids = {row.id for row in self._load_active_run_terms(run_id)}
+        candidates = list(
+            self.db.scalars(
+                select(TermCandidate).where(TermCandidate.source.ilike("%ai_extract%"))
+            ).all()
+        )
+        for candidate in candidates:
+            ai_evidence = [
+                item
+                for item in TermCandidateService(self.db)._normalize_evidence(candidate.evidence)
+                if (
+                    TermCandidateService(self.db)._is_ai_vocabulary_evidence(item)
+                    and item.get("ai_run_id") == run_id
+                    and str(item.get("raw_term_id", "")).strip() in active_raw_term_ids
+                )
+            ]
+            if not ai_evidence:
+                continue
+            items.append(
+                {
+                    "term": candidate.canonical,
+                    "candidateId": candidate.id,
+                    "evidenceCount": len(ai_evidence),
+                }
+            )
+        items.sort(key=lambda item: (-item["evidenceCount"], item["term"]))
+        return {"items": items[: max(1, min(limit, 100))]}
+
+    def compare_runs(self, run_id: str, target_run_id: str, top_n: int = 20) -> dict[str, Any]:
+        if run_id == target_run_id:
+            raise ValueError("targetRunId must be different from run_id")
+        base_summary = self.get_run_summary(run_id)
+        target_summary = self.get_run_summary(target_run_id)
+        base_breakdown = self._compute_breakdown(self._load_active_run_terms(run_id))
+        target_breakdown = self._compute_breakdown(self._load_active_run_terms(target_run_id))
+
+        diff_types = ["INVALID_JSON", "INVALID_EVIDENCE", "FILTERED_NOISE", "LOW_CONFIDENCE"]
+        invalid_breakdown_diff = [
+            {
+                "type": breakdown_type,
+                "baseCount": base_breakdown.get(breakdown_type, 0),
+                "targetCount": target_breakdown.get(breakdown_type, 0),
+                "delta": target_breakdown.get(breakdown_type, 0) - base_breakdown.get(breakdown_type, 0),
+            }
+            for breakdown_type in diff_types
+        ]
+
+        return {
+            "baseRun": base_summary,
+            "targetRun": target_summary,
+            "metricsDiff": {
+                "rawTerms": target_summary["metrics"]["rawTerms"] - base_summary["metrics"]["rawTerms"],
+                "validTerms": target_summary["metrics"]["validTerms"] - base_summary["metrics"]["validTerms"],
+                "invalidTerms": target_summary["metrics"]["invalidTerms"] - base_summary["metrics"]["invalidTerms"],
+                "candidates": target_summary["metrics"]["candidates"] - base_summary["metrics"]["candidates"],
+                "validRate": round(
+                    target_summary["metrics"]["validRate"] - base_summary["metrics"]["validRate"],
+                    4,
+                ),
+                "evidenceFailRate": round(
+                    target_summary["metrics"]["evidenceFailRate"] - base_summary["metrics"]["evidenceFailRate"],
+                    4,
+                ),
+                "noiseRate": round(
+                    target_summary["metrics"]["noiseRate"] - base_summary["metrics"]["noiseRate"],
+                    4,
+                ),
+            },
+            "invalidBreakdownDiff": invalid_breakdown_diff,
+            "topTermChanges": self._compare_top_terms(run_id, target_run_id, limit=top_n),
+        }
+
+    def _require_run(self, run_id: str) -> AIVocabularyRun:
+        run = self.db.get(AIVocabularyRun, run_id)
+        if run is None:
+            raise ValueError(f"Run not found: {run_id}")
+        return run
+
+    def _compute_breakdown(self, rows: list[AIVocabularyTermRaw]) -> dict[str, int]:
+        breakdown = {
+            "VALID": 0,
+            "INVALID_JSON": 0,
+            "INVALID_EVIDENCE": 0,
+            "FILTERED_NOISE": 0,
+            "LOW_CONFIDENCE": 0,
+        }
+        for row in rows:
+            status = normalize_validation_status(row.validation_status, row.confidence)
+            breakdown[status] = breakdown.get(status, 0) + 1
+        return breakdown
+
+    def _load_active_run_terms(self, run_id: str) -> list[AIVocabularyTermRaw]:
+        return list(
+            self.db.scalars(
+                select(AIVocabularyTermRaw).where(
+                    AIVocabularyTermRaw.ai_run_id == run_id,
+                    AIVocabularyTermRaw.ignored_at.is_(None),
+                )
+            ).all()
+        )
+
+    def _safe_rate(self, numerator: int, denominator: int) -> float:
+        if denominator <= 0:
+            return 0.0
+        return round(numerator / denominator, 4)
+
+    def _statuses_for_filter(self, validation_status: str) -> set[str]:
+        normalized = (validation_status or "").strip().upper()
+        return VALIDATION_STATUS_COMPATIBILITY.get(normalized, {normalized})
+
+    def _apply_validation_status_filter(self, stmt, validation_status: str):
+        normalized = (validation_status or "").strip().upper()
+        if normalized == "VALID":
+            return stmt.where(
+                AIVocabularyTermRaw.validation_status == "VALID",
+                or_(
+                    AIVocabularyTermRaw.confidence.is_(None),
+                    AIVocabularyTermRaw.confidence >= LOW_CONFIDENCE_THRESHOLD,
+                ),
+            )
+        if normalized == "LOW_CONFIDENCE":
+            return stmt.where(
+                or_(
+                    AIVocabularyTermRaw.validation_status == "LOW_CONFIDENCE",
+                    and_(
+                        AIVocabularyTermRaw.validation_status == "VALID",
+                        AIVocabularyTermRaw.confidence < LOW_CONFIDENCE_THRESHOLD,
+                    ),
+                )
+            )
+        return stmt.where(
+            AIVocabularyTermRaw.validation_status.in_(self._statuses_for_filter(normalized))
+        )
+
+    def _get_run_candidate_linkage(self, run_id: str) -> dict[str, int]:
+        linkage: dict[str, int] = {}
+        candidates = list(
+            self.db.scalars(
+                select(TermCandidate).where(TermCandidate.source.ilike("%ai_extract%"))
+            ).all()
+        )
+        for candidate in candidates:
+            evidence_items = TermCandidateService(self.db)._normalize_evidence(candidate.evidence)
+            for item in evidence_items:
+                raw_term_id = str(item.get("raw_term_id", "")).strip()
+                if (
+                    item.get("ai_run_id") == run_id
+                    and raw_term_id
+                ):
+                    linkage[raw_term_id] = candidate.id
+        return linkage
+
+    def _serialize_run_term(self, row: AIVocabularyTermRaw, candidate_id: int | None) -> dict[str, Any]:
+        return {
+            "rawTermId": row.id,
+            "term": row.term,
+            "normalizedTerm": row.normalized_term,
+            "confidence": row.confidence,
+            "validationStatus": normalize_validation_status(row.validation_status, row.confidence),
+            "docId": row.doc_id,
+            "chunkId": row.chunk_id,
+            "evidence": row.evidence,
+            "evidenceStart": row.evidence_start,
+            "evidenceEnd": row.evidence_end,
+            "hasCandidate": candidate_id is not None,
+            "candidateId": candidate_id,
+        }
+
+    def _compare_top_terms(self, base_run_id: str, target_run_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        base_counts = self._valid_term_counts(base_run_id)
+        target_counts = self._valid_term_counts(target_run_id)
+        all_terms = set(base_counts) | set(target_counts)
+        changes: list[dict[str, Any]] = []
+        for term in all_terms:
+            base_count = base_counts.get(term, 0)
+            target_count = target_counts.get(term, 0)
+            if base_count == target_count:
+                continue
+            if base_count == 0:
+                change_type = "NEW"
+            elif target_count == 0:
+                change_type = "DROPPED"
+            elif target_count > base_count:
+                change_type = "UP"
+            else:
+                change_type = "DOWN"
+            changes.append(
+                {
+                    "term": term,
+                    "baseCount": base_count,
+                    "targetCount": target_count,
+                    "changeType": change_type,
+                    "_abs_delta": abs(target_count - base_count),
+                }
+            )
+        changes.sort(key=lambda item: (-item["_abs_delta"], item["term"]))
+        return [{key: value for key, value in item.items() if key != "_abs_delta"} for item in changes[: max(1, min(limit, 100))]]
+
+    def _valid_term_counts(self, run_id: str) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for row in self._load_active_run_terms(run_id):
+            if normalize_validation_status(row.validation_status, row.confidence) != "VALID":
+                continue
+            key = row.normalized_term or self._fallback_normalized_term(row.term)
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    def _fallback_normalized_term(self, term: str) -> str:
+        return " ".join((term or "").strip().split()).lower()

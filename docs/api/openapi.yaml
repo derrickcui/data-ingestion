@@ -382,7 +382,7 @@ paths:
     get:
       tags:
       - AI Vocabulary
-      summary: List raw extracted terms
+      summary: List run terms with filters
       operationId: list_run_terms_ai_vocabulary_runs__run_id__terms_get
       parameters:
       - name: run_id
@@ -391,16 +391,81 @@ paths:
         schema:
           type: string
           title: Run Id
+      - name: validationStatus
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Validationstatus
+      - name: confidenceMin
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Confidencemin
+      - name: hasCandidate
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Hascandidate
+      - name: docId
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Docid
+      - name: term
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Term
+      - name: sortBy
+        in: query
+        required: false
+        schema:
+          type: string
+          default: createdAt
+          title: Sortby
+      - name: sortOrder
+        in: query
+        required: false
+        schema:
+          type: string
+          default: desc
+          title: Sortorder
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+          title: Page
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          title: Size
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/RawTermResponse'
-                title: Response List Run Terms Ai Vocabulary Runs  Run Id  Terms Get
+                $ref: '#/components/schemas/RunTermsPageResponse'
         '422':
           description: Validation Error
           content:
@@ -627,7 +692,263 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RunSummaryResponse'
+                $ref: '#/components/schemas/RunDetailSummaryResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs/{run_id}/invalid-breakdown:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: Get invalid term breakdown
+      operationId: get_invalid_breakdown_ai_vocabulary_runs__run_id__invalid_breakdown_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvalidBreakdownResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs/{run_id}/top-candidates:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: Get top linked candidates for a run
+      operationId: get_top_candidates_ai_vocabulary_runs__run_id__top_candidates_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunTopCandidatesResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs/{run_id}/compare:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: Compare two runs
+      operationId: compare_runs_ai_vocabulary_runs__run_id__compare_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      - name: targetRunId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Targetrunid
+      - name: topN
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          title: Topn
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompareRunResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs/{run_id}/rerun:
+    post:
+      tags:
+      - AI Vocabulary
+      summary: Create a rerun from an existing run
+      operationId: rerun_ai_vocabulary_runs__run_id__rerun_post
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RerunRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/raw-terms/{raw_term_id}/candidate:
+    post:
+      tags:
+      - AI Vocabulary
+      summary: Push a raw term into candidate governance
+      operationId: add_raw_term_to_candidate_ai_vocabulary_raw_terms__raw_term_id__candidate_post
+      parameters:
+      - name: raw_term_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Raw Term Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddRawTermCandidateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddRawTermCandidateResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/raw-terms/{raw_term_id}/ignore:
+    post:
+      tags:
+      - AI Vocabulary
+      summary: Ignore a raw term from run detail tuning views
+      operationId: ignore_raw_term_ai_vocabulary_raw_terms__raw_term_id__ignore_post
+      parameters:
+      - name: raw_term_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Raw Term Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IgnoreRawTermRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IgnoreRawTermResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/raw-terms/{raw_term_id}/unignore:
+    post:
+      tags:
+      - AI Vocabulary
+      summary: Restore a previously ignored raw term
+      operationId: unignore_raw_term_ai_vocabulary_raw_terms__raw_term_id__unignore_post
+      parameters:
+      - name: raw_term_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Raw Term Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IgnoreRawTermResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ai-vocabulary/runs/{run_id}/logs:
+    get:
+      tags:
+      - AI Vocabulary
+      summary: List run execution logs
+      operationId: list_run_logs_ai_vocabulary_runs__run_id__logs_get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 200
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RunLogResponse'
+                title: Response List Run Logs Ai Vocabulary Runs  Run Id  Logs Get
         '422':
           description: Validation Error
           content:
@@ -636,8 +957,9 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
   /:
     get:
-      summary: Hello World
-      operationId: hello_world__get
+      summary: Root Health Check
+      description: 提供应用的基本信息和健康状态。
+      operationId: root__get
       responses:
         '200':
           description: Successful Response
@@ -646,6 +968,46 @@ paths:
               schema: {}
 components:
   schemas:
+    AddRawTermCandidateRequest:
+      properties:
+        term:
+          type: string
+          title: Term
+        normalizedTerm:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Normalizedterm
+        source:
+          type: string
+          title: Source
+          default: AI_RUN_DETAIL
+      type: object
+      required:
+      - term
+      title: AddRawTermCandidateRequest
+    AddRawTermCandidateResponse:
+      properties:
+        candidateId:
+          type: integer
+          title: Candidateid
+        term:
+          type: string
+          title: Term
+        status:
+          type: string
+          title: Status
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+      type: object
+      required:
+      - candidateId
+      - term
+      - status
+      - createdAt
+      title: AddRawTermCandidateResponse
     Body_upload_ingest_upload_post:
       properties:
         file:
@@ -663,6 +1025,107 @@ components:
       required:
       - file
       title: Body_upload_ingest_upload_post
+    CompareRunInvalidBreakdownDiffItemResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+        baseCount:
+          type: integer
+          title: Basecount
+        targetCount:
+          type: integer
+          title: Targetcount
+        delta:
+          type: integer
+          title: Delta
+      type: object
+      required:
+      - type
+      - baseCount
+      - targetCount
+      - delta
+      title: CompareRunInvalidBreakdownDiffItemResponse
+    CompareRunMetricsDiffResponse:
+      properties:
+        rawTerms:
+          type: integer
+          title: Rawterms
+        validTerms:
+          type: integer
+          title: Validterms
+        invalidTerms:
+          type: integer
+          title: Invalidterms
+        candidates:
+          type: integer
+          title: Candidates
+        validRate:
+          type: number
+          title: Validrate
+        evidenceFailRate:
+          type: number
+          title: Evidencefailrate
+        noiseRate:
+          type: number
+          title: Noiserate
+      type: object
+      required:
+      - rawTerms
+      - validTerms
+      - invalidTerms
+      - candidates
+      - validRate
+      - evidenceFailRate
+      - noiseRate
+      title: CompareRunMetricsDiffResponse
+    CompareRunResponse:
+      properties:
+        baseRun:
+          $ref: '#/components/schemas/RunDetailSummaryResponse'
+        targetRun:
+          $ref: '#/components/schemas/RunDetailSummaryResponse'
+        metricsDiff:
+          $ref: '#/components/schemas/CompareRunMetricsDiffResponse'
+        invalidBreakdownDiff:
+          items:
+            $ref: '#/components/schemas/CompareRunInvalidBreakdownDiffItemResponse'
+          type: array
+          title: Invalidbreakdowndiff
+        topTermChanges:
+          items:
+            $ref: '#/components/schemas/CompareRunTopTermChangeItemResponse'
+          type: array
+          title: Toptermchanges
+      type: object
+      required:
+      - baseRun
+      - targetRun
+      - metricsDiff
+      - invalidBreakdownDiff
+      - topTermChanges
+      title: CompareRunResponse
+    CompareRunTopTermChangeItemResponse:
+      properties:
+        term:
+          type: string
+          title: Term
+        baseCount:
+          type: integer
+          title: Basecount
+        targetCount:
+          type: integer
+          title: Targetcount
+        changeType:
+          type: string
+          title: Changetype
+      type: object
+      required:
+      - term
+      - baseCount
+      - targetCount
+      - changeType
+      title: CompareRunTopTermChangeItemResponse
     CreatePromptVersionRequest:
       properties:
         prompt_version:
@@ -851,6 +1314,42 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    IgnoreRawTermRequest:
+      properties:
+        reason:
+          type: string
+          title: Reason
+          default: FILTERED_NOISE
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+      type: object
+      title: IgnoreRawTermRequest
+    IgnoreRawTermResponse:
+      properties:
+        rawTermId:
+          type: string
+          title: Rawtermid
+        ignored:
+          type: boolean
+          title: Ignored
+        ignoredAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Ignoredat
+        validationStatus:
+          type: string
+          title: Validationstatus
+      type: object
+      required:
+      - rawTermId
+      - ignored
+      - validationStatus
+      title: IgnoreRawTermResponse
     IngestStructuredRequest:
       properties:
         source_type:
@@ -899,6 +1398,30 @@ components:
       - source_type
       title: IngestStructuredRequest
       description: 用于接收结构化文本、URI或Base64数据的JSON请求体
+    InvalidBreakdownItemResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+        count:
+          type: integer
+          title: Count
+      type: object
+      required:
+      - type
+      - count
+      title: InvalidBreakdownItemResponse
+    InvalidBreakdownResponse:
+      properties:
+        breakdown:
+          items:
+            $ref: '#/components/schemas/InvalidBreakdownItemResponse'
+          type: array
+          title: Breakdown
+      type: object
+      required:
+      - breakdown
+      title: InvalidBreakdownResponse
     PromptVersionResponse:
       properties:
         id:
@@ -942,74 +1465,39 @@ components:
       - created_at
       - updated_at
       title: PromptVersionResponse
-    RawTermResponse:
+    RerunRequest:
       properties:
-        id:
-          type: string
-          title: Id
-        ai_run_id:
-          type: string
-          title: Ai Run Id
-        sample_item_id:
-          type: string
-          title: Sample Item Id
-        dataset:
-          type: string
-          title: Dataset
-        doc_id:
-          type: string
-          title: Doc Id
-        chunk_id:
-          type: string
-          title: Chunk Id
-        term:
-          type: string
-          title: Term
-        normalized_term:
-          type: string
-          title: Normalized Term
-        evidence:
-          type: string
-          title: Evidence
-        evidence_start:
+        promptVersion:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Promptversion
+        temperature:
+          anyOf:
+          - type: number
+            maximum: 2.0
+            minimum: 0.0
+          - type: 'null'
+          title: Temperature
+        provider:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Provider
+        modelName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Modelname
+        batchSize:
           anyOf:
           - type: integer
+            maximum: 50.0
+            minimum: 1.0
           - type: 'null'
-          title: Evidence Start
-        evidence_end:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Evidence End
-        confidence:
-          type: number
-          title: Confidence
-        validation_status:
-          type: string
-          title: Validation Status
-        raw_model_output:
-          type: string
-          title: Raw Model Output
-        created_at:
-          type: string
-          format: date-time
-          title: Created At
+          title: Batchsize
       type: object
-      required:
-      - id
-      - ai_run_id
-      - sample_item_id
-      - dataset
-      - doc_id
-      - chunk_id
-      - term
-      - normalized_term
-      - evidence
-      - confidence
-      - validation_status
-      - raw_model_output
-      - created_at
-      title: RawTermResponse
+      title: RerunRequest
     ReviewCandidateRequest:
       properties:
         status:
@@ -1020,6 +1508,81 @@ components:
       required:
       - status
       title: ReviewCandidateRequest
+    RunDetailSummaryResponse:
+      properties:
+        runId:
+          type: string
+          title: Runid
+        dataset:
+          type: string
+          title: Dataset
+        sampleVersion:
+          type: string
+          title: Sampleversion
+        promptVersion:
+          type: string
+          title: Promptversion
+        model:
+          type: string
+          title: Model
+        status:
+          type: string
+          title: Status
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+        startedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Startedat
+        finishedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finishedat
+        metrics:
+          $ref: '#/components/schemas/RunSummaryMetricsResponse'
+      type: object
+      required:
+      - runId
+      - dataset
+      - sampleVersion
+      - promptVersion
+      - model
+      - status
+      - createdAt
+      - metrics
+      title: RunDetailSummaryResponse
+    RunLogResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        ai_run_id:
+          type: string
+          title: Ai Run Id
+        level:
+          type: string
+          title: Level
+        message:
+          type: string
+          title: Message
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - ai_run_id
+      - level
+      - message
+      - created_at
+      title: RunLogResponse
     RunResponse:
       properties:
         id:
@@ -1105,70 +1668,142 @@ components:
       - total_terms
       - created_at
       title: RunResponse
-    RunSummaryResponse:
+    RunSummaryMetricsResponse:
       properties:
-        run_id:
-          type: string
-          title: Run Id
-        run_key:
-          type: string
-          title: Run Key
-        dataset:
-          type: string
-          title: Dataset
-        sample_version_id:
-          type: string
-          title: Sample Version Id
-        status:
-          type: string
-          title: Status
-        total_samples:
+        totalSamples:
           type: integer
-          title: Total Samples
-        processed_samples:
+          title: Totalsamples
+        rawTerms:
           type: integer
-          title: Processed Samples
-        total_terms:
+          title: Rawterms
+        validTerms:
           type: integer
-          title: Total Terms
-        last_heartbeat_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-          title: Last Heartbeat At
-        last_progress_message:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Last Progress Message
-        raw_term_count:
+          title: Validterms
+        invalidTerms:
           type: integer
-          title: Raw Term Count
-        valid_term_count:
+          title: Invalidterms
+        candidates:
           type: integer
-          title: Valid Term Count
-        invalid_term_count:
-          type: integer
-          title: Invalid Term Count
-        candidate_count:
-          type: integer
-          title: Candidate Count
+          title: Candidates
+        validRate:
+          type: number
+          title: Validrate
+        evidenceFailRate:
+          type: number
+          title: Evidencefailrate
+        noiseRate:
+          type: number
+          title: Noiserate
       type: object
       required:
-      - run_id
-      - run_key
-      - dataset
-      - sample_version_id
-      - status
-      - total_samples
-      - processed_samples
-      - total_terms
-      - raw_term_count
-      - valid_term_count
-      - invalid_term_count
-      - candidate_count
-      title: RunSummaryResponse
+      - totalSamples
+      - rawTerms
+      - validTerms
+      - invalidTerms
+      - candidates
+      - validRate
+      - evidenceFailRate
+      - noiseRate
+      title: RunSummaryMetricsResponse
+    RunTermItemResponse:
+      properties:
+        rawTermId:
+          type: string
+          title: Rawtermid
+        term:
+          type: string
+          title: Term
+        normalizedTerm:
+          type: string
+          title: Normalizedterm
+        confidence:
+          type: number
+          title: Confidence
+        validationStatus:
+          type: string
+          title: Validationstatus
+        docId:
+          type: string
+          title: Docid
+        chunkId:
+          type: string
+          title: Chunkid
+        evidence:
+          type: string
+          title: Evidence
+        evidenceStart:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Evidencestart
+        evidenceEnd:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Evidenceend
+        hasCandidate:
+          type: boolean
+          title: Hascandidate
+        candidateId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Candidateid
+      type: object
+      required:
+      - rawTermId
+      - term
+      - normalizedTerm
+      - confidence
+      - validationStatus
+      - docId
+      - chunkId
+      - evidence
+      - hasCandidate
+      title: RunTermItemResponse
+    RunTermsPageResponse:
+      properties:
+        total:
+          type: integer
+          title: Total
+        items:
+          items:
+            $ref: '#/components/schemas/RunTermItemResponse'
+          type: array
+          title: Items
+      type: object
+      required:
+      - total
+      - items
+      title: RunTermsPageResponse
+    RunTopCandidateItemResponse:
+      properties:
+        term:
+          type: string
+          title: Term
+        candidateId:
+          type: integer
+          title: Candidateid
+        evidenceCount:
+          type: integer
+          title: Evidencecount
+      type: object
+      required:
+      - term
+      - candidateId
+      - evidenceCount
+      title: RunTopCandidateItemResponse
+    RunTopCandidatesResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/RunTopCandidateItemResponse'
+          type: array
+          title: Items
+      type: object
+      required:
+      - items
+      title: RunTopCandidatesResponse
     SampleItemResponse:
       properties:
         id:

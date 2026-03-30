@@ -120,6 +120,9 @@ class AIVocabularyTermRaw(Base):
     evidence_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     validation_status: Mapped[str] = mapped_column(String(32), default="VALID", index=True)
+    ignored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    ignore_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ignore_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_model_output: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
